@@ -2,2832 +2,736 @@
 > weartome@0.1.0 dev
 > next dev
 
+ ⚠ Port 3000 is in use, trying 3001 instead.
   ▲ Next.js 14.2.16
-  - Local:        http://localhost:3000
+  - Local:        http://localhost:3001
 
  ✓ Starting...
-Attention: Next.js now collects completely anonymous telemetry regarding usage.
-This information is used to shape Next.js' roadmap and prioritize features.
-You can learn more, including how to opt-out if you'd not like to participate in this anonymous program, by visiting the following URL:
-https://nextjs.org/telemetry
-
- ✓ Ready in 1840ms
- ○ Compiling /api/auth/login ...
- ✓ Compiled /api/auth/login in 1139ms (139 modules)
-PRAGMA foreign_keys = ON
-Initializing database tables...
-CREATE TABLE IF NOT EXISTS adminauth (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      email TEXT UNIQUE NOT NULL,
-      primaryPassword TEXT NOT NULL,
-      secondaryPassword TEXT,
-      failed_attempts INTEGER DEFAULT 0,
-      locked_until TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      email TEXT UNIQUE NOT NULL,
-      password TEXT NOT NULL,
-      name TEXT NOT NULL,
-      phone TEXT,
-      role TEXT NOT NULL DEFAULT 'Customer', -- Admin, Sub-admin, Manager, Customer Care, Customer
-      permissions TEXT DEFAULT '[]', -- JSON string containing overrides/permissions list
-      gender TEXT, -- Onboarding Q1
-      how_found TEXT, -- Onboarding Q2
-      style_pref TEXT, -- Onboarding Q3
-      category_pref TEXT, -- Onboarding Q4
-      promotion_tier TEXT DEFAULT 'Standard', -- Standard, Loyal, Top User, VIP
-      is_suspended INTEGER DEFAULT 0, -- 0 = Active, 1 = Suspended
-      suspended_until TEXT, -- datetime string
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS category (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT UNIQUE NOT NULL,
-      slug TEXT UNIQUE NOT NULL
-    );
-CREATE TABLE IF NOT EXISTS products (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      slug TEXT UNIQUE NOT NULL,
-      description TEXT,
-      price REAL NOT NULL,
-      stock INTEGER NOT NULL DEFAULT 0,
-      category_id INTEGER REFERENCES category(id) ON DELETE SET NULL,
-      subcategory TEXT,
-      gender_target TEXT NOT NULL DEFAULT 'unisex', -- men, women, unisex, gen-z
-      sizes TEXT DEFAULT '[]', -- JSON array of sizes: ["S", "M", "L"]
-      colors TEXT DEFAULT '[]', -- JSON array of colors: ["#000000", "#FFFFFF"]
-      quality_grade TEXT DEFAULT 'A', -- Quality / fabric grade
-      grid_position INTEGER DEFAULT NULL, -- controls manual grid placement seating
-      is_trending INTEGER DEFAULT 0, -- boolean
-      discount_percent REAL DEFAULT 0,
-      discount_active_from TEXT, -- ISO Date string
-      discount_active_to TEXT, -- ISO Date string
-      display_price_strikethrough INTEGER DEFAULT 0, -- boolean
-      min_images INTEGER DEFAULT 2,
-      max_images INTEGER DEFAULT 10,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS mediafile (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      filepath TEXT NOT NULL,
-      entity_type TEXT NOT NULL, -- 'product', 'blog', etc.
-      entity_id INTEGER NOT NULL,
-      original_filename TEXT,
-      file_size INTEGER,
-      is_primary INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS refreshtoken (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      token TEXT UNIQUE NOT NULL,
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      expires_at TEXT NOT NULL,
-      revoked INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS websitesetting (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL
-    );
-CREATE TABLE IF NOT EXISTS systemsetting (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL
-    );
-CREATE TABLE IF NOT EXISTS themepreset (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT UNIQUE NOT NULL,
-      tokens TEXT NOT NULL -- JSON string of tokens
-    );
-CREATE TABLE IF NOT EXISTS themecustomization (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      preset_id INTEGER REFERENCES themepreset(id),
-      custom_tokens TEXT NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS orders (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL REFERENCES users(id),
-      total_price REAL NOT NULL,
-      discount_applied REAL DEFAULT 0,
-      coupon_code TEXT,
-      status TEXT DEFAULT 'Pending', -- Pending, Shipped, Out for Delivery, Delivered, Cancelled, Return Requested, Return Approved
-      shipping_address TEXT NOT NULL,
-      payment_ref TEXT,
-      payment_status TEXT DEFAULT 'Pending', -- Pending, Paid, Refunded
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS order_items (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
-      product_id INTEGER NOT NULL REFERENCES products(id),
-      quantity INTEGER NOT NULL,
-      price REAL NOT NULL,
-      color TEXT,
-      size TEXT
-    );
-CREATE TABLE IF NOT EXISTS coupons (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      code TEXT UNIQUE NOT NULL,
-      type TEXT NOT NULL, -- 'private', 'public_sub' (product-scoped), 'public_pro' (site-wide)
-      discount_value REAL NOT NULL, -- percentage or flat amount
-      discount_type TEXT NOT NULL DEFAULT 'percent', -- 'percent' or 'flat'
-      max_redemptions INTEGER DEFAULT 9999, -- Private usage cap
-      redeemed_count INTEGER DEFAULT 0,
-      active_from TEXT, -- date string
-      active_to TEXT, -- date string
-      product_id INTEGER, -- Optional product scoping
-      category_id INTEGER, -- Optional category scoping
-      per_account_limit INTEGER DEFAULT 1,
-      is_active INTEGER DEFAULT 1,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS coupon_redemptions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      coupon_id INTEGER NOT NULL REFERENCES coupons(id) ON DELETE CASCADE,
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      order_id INTEGER REFERENCES orders(id) ON DELETE SET NULL,
-      redeemed_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS message (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      sender_id INTEGER NOT NULL REFERENCES users(id),
-      receiver_id INTEGER REFERENCES users(id), -- Null means sent to Customer Care general inbox
-      content TEXT NOT NULL,
-      is_read INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS notification (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, -- target recipient
-      title TEXT NOT NULL,
-      message TEXT NOT NULL,
-      is_read INTEGER DEFAULT 0,
-      type TEXT, -- order_status, coupon, chat, low_stock, career
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS career_applications (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      email TEXT NOT NULL,
-      phone TEXT,
-      role_interest TEXT NOT NULL,
-      resume_link TEXT,
-      cover_letter TEXT,
-      status TEXT DEFAULT 'Pending', -- Pending, Reviewed, Approved, Rejected
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS activitylog (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
-      action TEXT NOT NULL,
-      details TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-Seeding baseline database records...
-SELECT id FROM adminauth WHERE email = 'weartome@admin.com'
-SELECT id FROM users WHERE email = 'weartome@admin.com'
-SELECT id FROM category WHERE slug = 'apparel'
-SELECT id FROM category WHERE slug = 'accessories'
-SELECT id FROM category WHERE slug = 'trending'
-SELECT id FROM category WHERE slug = 'apparel'
-SELECT id FROM category WHERE slug = 'accessories'
-SELECT id FROM products WHERE slug = 'silk-midnight-gown'
-SELECT id FROM products WHERE slug = 'golden-hour-watch'
-SELECT id FROM products WHERE slug = 'cashmere-scarf'
-SELECT key FROM websitesetting WHERE key = 'site.name'
-SELECT key FROM websitesetting WHERE key = 'site.tagline'
-SELECT key FROM websitesetting WHERE key = 'site.primary_color'
-SELECT key FROM websitesetting WHERE key = 'site.primary_font'
-SELECT key FROM websitesetting WHERE key = 'site.seo_title'
-SELECT key FROM systemsetting WHERE key = 'ai_enabled'
-SELECT key FROM systemsetting WHERE key = 'voice_enabled'
-SELECT key FROM systemsetting WHERE key = 'theme_mode'
-SELECT id FROM themepreset WHERE name = 'Gucci Luxe'
-SELECT id FROM themepreset WHERE name = 'Minimal Dark'
-SELECT id FROM themepreset WHERE name = 'Vibrant Modern'
-SELECT id FROM coupons WHERE code = 'WELCOME10'
-SELECT id FROM coupons WHERE code = 'VIP500'
-Database initialization and seeding completed successfully!
-SELECT * FROM adminauth WHERE email = 'weartome@admin.com'
-SELECT * FROM users WHERE email = 'weartome@admin.com'
-INSERT INTO activitylog (user_id, action, details) VALUES (1.0, 'User Login', 'Successful login with role: Admi'/*+1 bytes*/)
- POST /api/auth/login 200 in 1629ms
- ✓ Compiled /api/auth/signup in 190ms (141 modules)
-PRAGMA foreign_keys = ON
-Initializing database tables...
-CREATE TABLE IF NOT EXISTS adminauth (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      email TEXT UNIQUE NOT NULL,
-      primaryPassword TEXT NOT NULL,
-      secondaryPassword TEXT,
-      failed_attempts INTEGER DEFAULT 0,
-      locked_until TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      email TEXT UNIQUE NOT NULL,
-      password TEXT NOT NULL,
-      name TEXT NOT NULL,
-      phone TEXT,
-      role TEXT NOT NULL DEFAULT 'Customer', -- Admin, Sub-admin, Manager, Customer Care, Customer
-      permissions TEXT DEFAULT '[]', -- JSON string containing overrides/permissions list
-      gender TEXT, -- Onboarding Q1
-      how_found TEXT, -- Onboarding Q2
-      style_pref TEXT, -- Onboarding Q3
-      category_pref TEXT, -- Onboarding Q4
-      promotion_tier TEXT DEFAULT 'Standard', -- Standard, Loyal, Top User, VIP
-      is_suspended INTEGER DEFAULT 0, -- 0 = Active, 1 = Suspended
-      suspended_until TEXT, -- datetime string
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS category (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT UNIQUE NOT NULL,
-      slug TEXT UNIQUE NOT NULL
-    );
-CREATE TABLE IF NOT EXISTS products (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      slug TEXT UNIQUE NOT NULL,
-      description TEXT,
-      price REAL NOT NULL,
-      stock INTEGER NOT NULL DEFAULT 0,
-      category_id INTEGER REFERENCES category(id) ON DELETE SET NULL,
-      subcategory TEXT,
-      gender_target TEXT NOT NULL DEFAULT 'unisex', -- men, women, unisex, gen-z
-      sizes TEXT DEFAULT '[]', -- JSON array of sizes: ["S", "M", "L"]
-      colors TEXT DEFAULT '[]', -- JSON array of colors: ["#000000", "#FFFFFF"]
-      quality_grade TEXT DEFAULT 'A', -- Quality / fabric grade
-      grid_position INTEGER DEFAULT NULL, -- controls manual grid placement seating
-      is_trending INTEGER DEFAULT 0, -- boolean
-      discount_percent REAL DEFAULT 0,
-      discount_active_from TEXT, -- ISO Date string
-      discount_active_to TEXT, -- ISO Date string
-      display_price_strikethrough INTEGER DEFAULT 0, -- boolean
-      min_images INTEGER DEFAULT 2,
-      max_images INTEGER DEFAULT 10,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS mediafile (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      filepath TEXT NOT NULL,
-      entity_type TEXT NOT NULL, -- 'product', 'blog', etc.
-      entity_id INTEGER NOT NULL,
-      original_filename TEXT,
-      file_size INTEGER,
-      is_primary INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS refreshtoken (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      token TEXT UNIQUE NOT NULL,
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      expires_at TEXT NOT NULL,
-      revoked INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS websitesetting (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL
-    );
-CREATE TABLE IF NOT EXISTS systemsetting (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL
-    );
-CREATE TABLE IF NOT EXISTS themepreset (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT UNIQUE NOT NULL,
-      tokens TEXT NOT NULL -- JSON string of tokens
-    );
-CREATE TABLE IF NOT EXISTS themecustomization (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      preset_id INTEGER REFERENCES themepreset(id),
-      custom_tokens TEXT NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS orders (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL REFERENCES users(id),
-      total_price REAL NOT NULL,
-      discount_applied REAL DEFAULT 0,
-      coupon_code TEXT,
-      status TEXT DEFAULT 'Pending', -- Pending, Shipped, Out for Delivery, Delivered, Cancelled, Return Requested, Return Approved
-      shipping_address TEXT NOT NULL,
-      payment_ref TEXT,
-      payment_status TEXT DEFAULT 'Pending', -- Pending, Paid, Refunded
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS order_items (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
-      product_id INTEGER NOT NULL REFERENCES products(id),
-      quantity INTEGER NOT NULL,
-      price REAL NOT NULL,
-      color TEXT,
-      size TEXT
-    );
-CREATE TABLE IF NOT EXISTS coupons (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      code TEXT UNIQUE NOT NULL,
-      type TEXT NOT NULL, -- 'private', 'public_sub' (product-scoped), 'public_pro' (site-wide)
-      discount_value REAL NOT NULL, -- percentage or flat amount
-      discount_type TEXT NOT NULL DEFAULT 'percent', -- 'percent' or 'flat'
-      max_redemptions INTEGER DEFAULT 9999, -- Private usage cap
-      redeemed_count INTEGER DEFAULT 0,
-      active_from TEXT, -- date string
-      active_to TEXT, -- date string
-      product_id INTEGER, -- Optional product scoping
-      category_id INTEGER, -- Optional category scoping
-      per_account_limit INTEGER DEFAULT 1,
-      is_active INTEGER DEFAULT 1,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS coupon_redemptions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      coupon_id INTEGER NOT NULL REFERENCES coupons(id) ON DELETE CASCADE,
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      order_id INTEGER REFERENCES orders(id) ON DELETE SET NULL,
-      redeemed_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS message (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      sender_id INTEGER NOT NULL REFERENCES users(id),
-      receiver_id INTEGER REFERENCES users(id), -- Null means sent to Customer Care general inbox
-      content TEXT NOT NULL,
-      is_read INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS notification (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, -- target recipient
-      title TEXT NOT NULL,
-      message TEXT NOT NULL,
-      is_read INTEGER DEFAULT 0,
-      type TEXT, -- order_status, coupon, chat, low_stock, career
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS career_applications (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      email TEXT NOT NULL,
-      phone TEXT,
-      role_interest TEXT NOT NULL,
-      resume_link TEXT,
-      cover_letter TEXT,
-      status TEXT DEFAULT 'Pending', -- Pending, Reviewed, Approved, Rejected
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS activitylog (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
-      action TEXT NOT NULL,
-      details TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-Seeding baseline database records...
-SELECT id FROM adminauth WHERE email = 'weartome@admin.com'
-SELECT id FROM users WHERE email = 'weartome@admin.com'
-SELECT id FROM category WHERE slug = 'apparel'
-SELECT id FROM category WHERE slug = 'accessories'
-SELECT id FROM category WHERE slug = 'trending'
-SELECT id FROM category WHERE slug = 'apparel'
-SELECT id FROM category WHERE slug = 'accessories'
-SELECT id FROM products WHERE slug = 'silk-midnight-gown'
-SELECT id FROM products WHERE slug = 'golden-hour-watch'
-SELECT id FROM products WHERE slug = 'cashmere-scarf'
-SELECT key FROM websitesetting WHERE key = 'site.name'
-SELECT key FROM websitesetting WHERE key = 'site.tagline'
-SELECT key FROM websitesetting WHERE key = 'site.primary_color'
-SELECT key FROM websitesetting WHERE key = 'site.primary_font'
-SELECT key FROM websitesetting WHERE key = 'site.seo_title'
-SELECT key FROM systemsetting WHERE key = 'ai_enabled'
-SELECT key FROM systemsetting WHERE key = 'voice_enabled'
-SELECT key FROM systemsetting WHERE key = 'theme_mode'
-SELECT id FROM themepreset WHERE name = 'Gucci Luxe'
-SELECT id FROM themepreset WHERE name = 'Minimal Dark'
-SELECT id FROM themepreset WHERE name = 'Vibrant Modern'
-SELECT id FROM coupons WHERE code = 'WELCOME10'
-SELECT id FROM coupons WHERE code = 'VIP500'
-Database initialization and seeding completed successfully!
-SELECT id FROM users WHERE email = 'testcustomer@weartome.com'
-INSERT INTO users (email, password, name, role, permissions) VALUES ('testcustomer@weartome.com', '$2b$10$BIS/gR2ZMe7oujASKKIBxuGJf'/*+28 bytes*/, 'Jane Doe', 'Customer', '["customer"]')
-SELECT * FROM users WHERE email = 'testcustomer@weartome.com'
-INSERT INTO notification (user_id, title, message, type) VALUES (3.0, 'Welcome to Wear Tome', 'Thank you for joining our luxury'/*+89 bytes*/, 'account_notice')
-INSERT INTO activitylog (user_id, action, details) VALUES (3.0, 'User Registration', 'New user account registered.')
- POST /api/auth/signup 200 in 558ms
- ✓ Compiled in 91ms (139 modules)
- ✓ Compiled in 1965ms (202 modules)
- ✓ Compiled in 128ms (202 modules)
- ✓ Compiled in 74ms (202 modules)
- ✓ Compiled in 68ms (202 modules)
- ✓ Compiled /api/auth/login in 337ms (139 modules)
-PRAGMA foreign_keys = ON
-Initializing database tables...
-CREATE TABLE IF NOT EXISTS adminauth (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      email TEXT UNIQUE NOT NULL,
-      primaryPassword TEXT NOT NULL,
-      secondaryPassword TEXT,
-      failed_attempts INTEGER DEFAULT 0,
-      locked_until TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      email TEXT UNIQUE NOT NULL,
-      password TEXT NOT NULL,
-      name TEXT NOT NULL,
-      phone TEXT,
-      role TEXT NOT NULL DEFAULT 'Customer', -- Admin, Sub-admin, Manager, Customer Care, Customer
-      permissions TEXT DEFAULT '[]', -- JSON string containing overrides/permissions list
-      gender TEXT, -- Onboarding Q1
-      how_found TEXT, -- Onboarding Q2
-      style_pref TEXT, -- Onboarding Q3
-      category_pref TEXT, -- Onboarding Q4
-      promotion_tier TEXT DEFAULT 'Standard', -- Standard, Loyal, Top User, VIP
-      is_suspended INTEGER DEFAULT 0, -- 0 = Active, 1 = Suspended
-      suspended_until TEXT, -- datetime string
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS category (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT UNIQUE NOT NULL,
-      slug TEXT UNIQUE NOT NULL
-    );
-CREATE TABLE IF NOT EXISTS products (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      slug TEXT UNIQUE NOT NULL,
-      description TEXT,
-      price REAL NOT NULL,
-      stock INTEGER NOT NULL DEFAULT 0,
-      category_id INTEGER REFERENCES category(id) ON DELETE SET NULL,
-      subcategory TEXT,
-      gender_target TEXT NOT NULL DEFAULT 'unisex', -- men, women, unisex, gen-z
-      sizes TEXT DEFAULT '[]', -- JSON array of sizes: ["S", "M", "L"]
-      colors TEXT DEFAULT '[]', -- JSON array of colors: ["#000000", "#FFFFFF"]
-      quality_grade TEXT DEFAULT 'A', -- Quality / fabric grade
-      grid_position INTEGER DEFAULT NULL, -- controls manual grid placement seating
-      is_trending INTEGER DEFAULT 0, -- boolean
-      discount_percent REAL DEFAULT 0,
-      discount_active_from TEXT, -- ISO Date string
-      discount_active_to TEXT, -- ISO Date string
-      display_price_strikethrough INTEGER DEFAULT 0, -- boolean
-      min_images INTEGER DEFAULT 2,
-      max_images INTEGER DEFAULT 10,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS mediafile (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      filepath TEXT NOT NULL,
-      entity_type TEXT NOT NULL, -- 'product', 'blog', etc.
-      entity_id INTEGER NOT NULL,
-      original_filename TEXT,
-      file_size INTEGER,
-      is_primary INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS refreshtoken (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      token TEXT UNIQUE NOT NULL,
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      expires_at TEXT NOT NULL,
-      revoked INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS websitesetting (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL
-    );
-CREATE TABLE IF NOT EXISTS systemsetting (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL
-    );
-CREATE TABLE IF NOT EXISTS themepreset (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT UNIQUE NOT NULL,
-      tokens TEXT NOT NULL -- JSON string of tokens
-    );
-CREATE TABLE IF NOT EXISTS themecustomization (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      preset_id INTEGER REFERENCES themepreset(id),
-      custom_tokens TEXT NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS cart (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
-      quantity INTEGER NOT NULL,
-      size TEXT,
-      color TEXT
-    );
-CREATE TABLE IF NOT EXISTS orders (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL REFERENCES users(id),
-      total_price REAL NOT NULL,
-      discount_applied REAL DEFAULT 0,
-      coupon_code TEXT,
-      status TEXT DEFAULT 'Pending', -- Pending, Shipped, Out for Delivery, Delivered, Cancelled, Return Requested, Return Approved
-      shipping_address TEXT NOT NULL,
-      payment_ref TEXT,
-      payment_status TEXT DEFAULT 'Pending', -- Pending, Paid, Refunded
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS order_items (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
-      product_id INTEGER NOT NULL REFERENCES products(id),
-      quantity INTEGER NOT NULL,
-      price REAL NOT NULL,
-      color TEXT,
-      size TEXT
-    );
-CREATE TABLE IF NOT EXISTS coupons (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      code TEXT UNIQUE NOT NULL,
-      type TEXT NOT NULL, -- 'private', 'public_sub' (product-scoped), 'public_pro' (site-wide)
-      discount_value REAL NOT NULL, -- percentage or flat amount
-      discount_type TEXT NOT NULL DEFAULT 'percent', -- 'percent' or 'flat'
-      max_redemptions INTEGER DEFAULT 9999, -- Private usage cap
-      redeemed_count INTEGER DEFAULT 0,
-      active_from TEXT, -- date string
-      active_to TEXT, -- date string
-      product_id INTEGER, -- Optional product scoping
-      category_id INTEGER, -- Optional category scoping
-      per_account_limit INTEGER DEFAULT 1,
-      is_active INTEGER DEFAULT 1,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS coupon_redemptions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      coupon_id INTEGER NOT NULL REFERENCES coupons(id) ON DELETE CASCADE,
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      order_id INTEGER REFERENCES orders(id) ON DELETE SET NULL,
-      redeemed_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS message (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      sender_id INTEGER NOT NULL REFERENCES users(id),
-      receiver_id INTEGER REFERENCES users(id), -- Null means sent to Customer Care general inbox
-      content TEXT NOT NULL,
-      is_read INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS notification (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, -- target recipient
-      title TEXT NOT NULL,
-      message TEXT NOT NULL,
-      is_read INTEGER DEFAULT 0,
-      type TEXT, -- order_status, coupon, chat, low_stock, career
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS career_applications (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      email TEXT NOT NULL,
-      phone TEXT,
-      role_interest TEXT NOT NULL,
-      resume_link TEXT,
-      cover_letter TEXT,
-      status TEXT DEFAULT 'Pending', -- Pending, Reviewed, Approved, Rejected
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS activitylog (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
-      action TEXT NOT NULL,
-      details TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-Seeding baseline database records...
-SELECT id FROM adminauth WHERE email = 'weartome@admin.com'
-SELECT id FROM users WHERE email = 'weartome@admin.com'
-SELECT id FROM category WHERE slug = 'apparel'
-SELECT id FROM category WHERE slug = 'accessories'
-SELECT id FROM category WHERE slug = 'trending'
-SELECT id FROM category WHERE slug = 'apparel'
-SELECT id FROM category WHERE slug = 'accessories'
-SELECT id FROM products WHERE slug = 'silk-midnight-gown'
-SELECT id FROM products WHERE slug = 'golden-hour-watch'
-SELECT id FROM products WHERE slug = 'cashmere-scarf'
-SELECT key FROM websitesetting WHERE key = 'site.name'
-SELECT key FROM websitesetting WHERE key = 'site.tagline'
-SELECT key FROM websitesetting WHERE key = 'site.primary_color'
-SELECT key FROM websitesetting WHERE key = 'site.primary_font'
-SELECT key FROM websitesetting WHERE key = 'site.seo_title'
-SELECT key FROM systemsetting WHERE key = 'ai_enabled'
-SELECT key FROM systemsetting WHERE key = 'voice_enabled'
-SELECT key FROM systemsetting WHERE key = 'theme_mode'
-SELECT id FROM themepreset WHERE name = 'Gucci Luxe'
-SELECT id FROM themepreset WHERE name = 'Minimal Dark'
-SELECT id FROM themepreset WHERE name = 'Vibrant Modern'
-SELECT id FROM coupons WHERE code = 'WELCOME10'
-SELECT id FROM coupons WHERE code = 'VIP500'
-Database initialization and seeding completed successfully!
-SELECT * FROM adminauth WHERE email = 'testcustomer@weartome.com'
-SELECT * FROM users WHERE email = 'testcustomer@weartome.com'
-INSERT INTO activitylog (user_id, action, details) VALUES (3.0, 'User Login', 'Successful login with role: Cust'/*+4 bytes*/)
- POST /api/auth/login 200 in 739ms
- ✓ Compiled /api/cart in 104ms (141 modules)
-PRAGMA foreign_keys = ON
-Initializing database tables...
-CREATE TABLE IF NOT EXISTS adminauth (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      email TEXT UNIQUE NOT NULL,
-      primaryPassword TEXT NOT NULL,
-      secondaryPassword TEXT,
-      failed_attempts INTEGER DEFAULT 0,
-      locked_until TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      email TEXT UNIQUE NOT NULL,
-      password TEXT NOT NULL,
-      name TEXT NOT NULL,
-      phone TEXT,
-      role TEXT NOT NULL DEFAULT 'Customer', -- Admin, Sub-admin, Manager, Customer Care, Customer
-      permissions TEXT DEFAULT '[]', -- JSON string containing overrides/permissions list
-      gender TEXT, -- Onboarding Q1
-      how_found TEXT, -- Onboarding Q2
-      style_pref TEXT, -- Onboarding Q3
-      category_pref TEXT, -- Onboarding Q4
-      promotion_tier TEXT DEFAULT 'Standard', -- Standard, Loyal, Top User, VIP
-      is_suspended INTEGER DEFAULT 0, -- 0 = Active, 1 = Suspended
-      suspended_until TEXT, -- datetime string
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS category (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT UNIQUE NOT NULL,
-      slug TEXT UNIQUE NOT NULL
-    );
-CREATE TABLE IF NOT EXISTS products (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      slug TEXT UNIQUE NOT NULL,
-      description TEXT,
-      price REAL NOT NULL,
-      stock INTEGER NOT NULL DEFAULT 0,
-      category_id INTEGER REFERENCES category(id) ON DELETE SET NULL,
-      subcategory TEXT,
-      gender_target TEXT NOT NULL DEFAULT 'unisex', -- men, women, unisex, gen-z
-      sizes TEXT DEFAULT '[]', -- JSON array of sizes: ["S", "M", "L"]
-      colors TEXT DEFAULT '[]', -- JSON array of colors: ["#000000", "#FFFFFF"]
-      quality_grade TEXT DEFAULT 'A', -- Quality / fabric grade
-      grid_position INTEGER DEFAULT NULL, -- controls manual grid placement seating
-      is_trending INTEGER DEFAULT 0, -- boolean
-      discount_percent REAL DEFAULT 0,
-      discount_active_from TEXT, -- ISO Date string
-      discount_active_to TEXT, -- ISO Date string
-      display_price_strikethrough INTEGER DEFAULT 0, -- boolean
-      min_images INTEGER DEFAULT 2,
-      max_images INTEGER DEFAULT 10,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS mediafile (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      filepath TEXT NOT NULL,
-      entity_type TEXT NOT NULL, -- 'product', 'blog', etc.
-      entity_id INTEGER NOT NULL,
-      original_filename TEXT,
-      file_size INTEGER,
-      is_primary INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS refreshtoken (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      token TEXT UNIQUE NOT NULL,
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      expires_at TEXT NOT NULL,
-      revoked INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS websitesetting (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL
-    );
-CREATE TABLE IF NOT EXISTS systemsetting (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL
-    );
-CREATE TABLE IF NOT EXISTS themepreset (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT UNIQUE NOT NULL,
-      tokens TEXT NOT NULL -- JSON string of tokens
-    );
-CREATE TABLE IF NOT EXISTS themecustomization (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      preset_id INTEGER REFERENCES themepreset(id),
-      custom_tokens TEXT NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS cart (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
-      quantity INTEGER NOT NULL,
-      size TEXT,
-      color TEXT
-    );
-CREATE TABLE IF NOT EXISTS orders (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL REFERENCES users(id),
-      total_price REAL NOT NULL,
-      discount_applied REAL DEFAULT 0,
-      coupon_code TEXT,
-      status TEXT DEFAULT 'Pending', -- Pending, Shipped, Out for Delivery, Delivered, Cancelled, Return Requested, Return Approved
-      shipping_address TEXT NOT NULL,
-      payment_ref TEXT,
-      payment_status TEXT DEFAULT 'Pending', -- Pending, Paid, Refunded
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS order_items (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
-      product_id INTEGER NOT NULL REFERENCES products(id),
-      quantity INTEGER NOT NULL,
-      price REAL NOT NULL,
-      color TEXT,
-      size TEXT
-    );
-CREATE TABLE IF NOT EXISTS coupons (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      code TEXT UNIQUE NOT NULL,
-      type TEXT NOT NULL, -- 'private', 'public_sub' (product-scoped), 'public_pro' (site-wide)
-      discount_value REAL NOT NULL, -- percentage or flat amount
-      discount_type TEXT NOT NULL DEFAULT 'percent', -- 'percent' or 'flat'
-      max_redemptions INTEGER DEFAULT 9999, -- Private usage cap
-      redeemed_count INTEGER DEFAULT 0,
-      active_from TEXT, -- date string
-      active_to TEXT, -- date string
-      product_id INTEGER, -- Optional product scoping
-      category_id INTEGER, -- Optional category scoping
-      per_account_limit INTEGER DEFAULT 1,
-      is_active INTEGER DEFAULT 1,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS coupon_redemptions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      coupon_id INTEGER NOT NULL REFERENCES coupons(id) ON DELETE CASCADE,
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      order_id INTEGER REFERENCES orders(id) ON DELETE SET NULL,
-      redeemed_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS message (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      sender_id INTEGER NOT NULL REFERENCES users(id),
-      receiver_id INTEGER REFERENCES users(id), -- Null means sent to Customer Care general inbox
-      content TEXT NOT NULL,
-      is_read INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS notification (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, -- target recipient
-      title TEXT NOT NULL,
-      message TEXT NOT NULL,
-      is_read INTEGER DEFAULT 0,
-      type TEXT, -- order_status, coupon, chat, low_stock, career
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS career_applications (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      email TEXT NOT NULL,
-      phone TEXT,
-      role_interest TEXT NOT NULL,
-      resume_link TEXT,
-      cover_letter TEXT,
-      status TEXT DEFAULT 'Pending', -- Pending, Reviewed, Approved, Rejected
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS activitylog (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
-      action TEXT NOT NULL,
-      details TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-Seeding baseline database records...
-SELECT id FROM adminauth WHERE email = 'weartome@admin.com'
-SELECT id FROM users WHERE email = 'weartome@admin.com'
-SELECT id FROM category WHERE slug = 'apparel'
-SELECT id FROM category WHERE slug = 'accessories'
-SELECT id FROM category WHERE slug = 'trending'
-SELECT id FROM category WHERE slug = 'apparel'
-SELECT id FROM category WHERE slug = 'accessories'
-SELECT id FROM products WHERE slug = 'silk-midnight-gown'
-SELECT id FROM products WHERE slug = 'golden-hour-watch'
-SELECT id FROM products WHERE slug = 'cashmere-scarf'
-SELECT key FROM websitesetting WHERE key = 'site.name'
-SELECT key FROM websitesetting WHERE key = 'site.tagline'
-SELECT key FROM websitesetting WHERE key = 'site.primary_color'
-SELECT key FROM websitesetting WHERE key = 'site.primary_font'
-SELECT key FROM websitesetting WHERE key = 'site.seo_title'
-SELECT key FROM systemsetting WHERE key = 'ai_enabled'
-SELECT key FROM systemsetting WHERE key = 'voice_enabled'
-SELECT key FROM systemsetting WHERE key = 'theme_mode'
-SELECT id FROM themepreset WHERE name = 'Gucci Luxe'
-SELECT id FROM themepreset WHERE name = 'Minimal Dark'
-SELECT id FROM themepreset WHERE name = 'Vibrant Modern'
-SELECT id FROM coupons WHERE code = 'WELCOME10'
-SELECT id FROM coupons WHERE code = 'VIP500'
-Database initialization and seeding completed successfully!
-SELECT stock, name FROM products WHERE id = 1.0
-SELECT id, quantity FROM cart WHERE user_id = 3.0 AND product_id = 1.0 AND size = 'M' AND color = '#0A0A0A'
-INSERT INTO cart (user_id, product_id, quantity, size, color) VALUES (3.0, 1.0, 1.0, 'M', '#0A0A0A')
- POST /api/cart 200 in 315ms
-SELECT c.id, c.product_id, c.quantity, c.size, c.color,
-              p.name, p.price, p.stock, p.slug, p.discount_percent,
-              p.discount_active_from, p.discount_active_to
-       FROM cart c
-       JOIN products p ON c.product_id = p.id
-       WHERE c.user_id = 3.0
-SELECT filepath FROM mediafile WHERE entity_type = 'product' AND entity_id = 1.0 AND is_primary = 1 LIMIT 1
- GET /api/cart 200 in 13ms
- ✓ Compiled /api/coupons/validate in 183ms (141 modules)
-PRAGMA foreign_keys = ON
-Initializing database tables...
-CREATE TABLE IF NOT EXISTS adminauth (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      email TEXT UNIQUE NOT NULL,
-      primaryPassword TEXT NOT NULL,
-      secondaryPassword TEXT,
-      failed_attempts INTEGER DEFAULT 0,
-      locked_until TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      email TEXT UNIQUE NOT NULL,
-      password TEXT NOT NULL,
-      name TEXT NOT NULL,
-      phone TEXT,
-      role TEXT NOT NULL DEFAULT 'Customer', -- Admin, Sub-admin, Manager, Customer Care, Customer
-      permissions TEXT DEFAULT '[]', -- JSON string containing overrides/permissions list
-      gender TEXT, -- Onboarding Q1
-      how_found TEXT, -- Onboarding Q2
-      style_pref TEXT, -- Onboarding Q3
-      category_pref TEXT, -- Onboarding Q4
-      promotion_tier TEXT DEFAULT 'Standard', -- Standard, Loyal, Top User, VIP
-      is_suspended INTEGER DEFAULT 0, -- 0 = Active, 1 = Suspended
-      suspended_until TEXT, -- datetime string
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS category (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT UNIQUE NOT NULL,
-      slug TEXT UNIQUE NOT NULL
-    );
-CREATE TABLE IF NOT EXISTS products (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      slug TEXT UNIQUE NOT NULL,
-      description TEXT,
-      price REAL NOT NULL,
-      stock INTEGER NOT NULL DEFAULT 0,
-      category_id INTEGER REFERENCES category(id) ON DELETE SET NULL,
-      subcategory TEXT,
-      gender_target TEXT NOT NULL DEFAULT 'unisex', -- men, women, unisex, gen-z
-      sizes TEXT DEFAULT '[]', -- JSON array of sizes: ["S", "M", "L"]
-      colors TEXT DEFAULT '[]', -- JSON array of colors: ["#000000", "#FFFFFF"]
-      quality_grade TEXT DEFAULT 'A', -- Quality / fabric grade
-      grid_position INTEGER DEFAULT NULL, -- controls manual grid placement seating
-      is_trending INTEGER DEFAULT 0, -- boolean
-      discount_percent REAL DEFAULT 0,
-      discount_active_from TEXT, -- ISO Date string
-      discount_active_to TEXT, -- ISO Date string
-      display_price_strikethrough INTEGER DEFAULT 0, -- boolean
-      min_images INTEGER DEFAULT 2,
-      max_images INTEGER DEFAULT 10,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS mediafile (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      filepath TEXT NOT NULL,
-      entity_type TEXT NOT NULL, -- 'product', 'blog', etc.
-      entity_id INTEGER NOT NULL,
-      original_filename TEXT,
-      file_size INTEGER,
-      is_primary INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS refreshtoken (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      token TEXT UNIQUE NOT NULL,
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      expires_at TEXT NOT NULL,
-      revoked INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS websitesetting (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL
-    );
-CREATE TABLE IF NOT EXISTS systemsetting (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL
-    );
-CREATE TABLE IF NOT EXISTS themepreset (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT UNIQUE NOT NULL,
-      tokens TEXT NOT NULL -- JSON string of tokens
-    );
-CREATE TABLE IF NOT EXISTS themecustomization (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      preset_id INTEGER REFERENCES themepreset(id),
-      custom_tokens TEXT NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS cart (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
-      quantity INTEGER NOT NULL,
-      size TEXT,
-      color TEXT
-    );
-CREATE TABLE IF NOT EXISTS orders (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL REFERENCES users(id),
-      total_price REAL NOT NULL,
-      discount_applied REAL DEFAULT 0,
-      coupon_code TEXT,
-      status TEXT DEFAULT 'Pending', -- Pending, Shipped, Out for Delivery, Delivered, Cancelled, Return Requested, Return Approved
-      shipping_address TEXT NOT NULL,
-      payment_ref TEXT,
-      payment_status TEXT DEFAULT 'Pending', -- Pending, Paid, Refunded
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS order_items (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
-      product_id INTEGER NOT NULL REFERENCES products(id),
-      quantity INTEGER NOT NULL,
-      price REAL NOT NULL,
-      color TEXT,
-      size TEXT
-    );
-CREATE TABLE IF NOT EXISTS coupons (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      code TEXT UNIQUE NOT NULL,
-      type TEXT NOT NULL, -- 'private', 'public_sub' (product-scoped), 'public_pro' (site-wide)
-      discount_value REAL NOT NULL, -- percentage or flat amount
-      discount_type TEXT NOT NULL DEFAULT 'percent', -- 'percent' or 'flat'
-      max_redemptions INTEGER DEFAULT 9999, -- Private usage cap
-      redeemed_count INTEGER DEFAULT 0,
-      active_from TEXT, -- date string
-      active_to TEXT, -- date string
-      product_id INTEGER, -- Optional product scoping
-      category_id INTEGER, -- Optional category scoping
-      per_account_limit INTEGER DEFAULT 1,
-      is_active INTEGER DEFAULT 1,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS coupon_redemptions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      coupon_id INTEGER NOT NULL REFERENCES coupons(id) ON DELETE CASCADE,
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      order_id INTEGER REFERENCES orders(id) ON DELETE SET NULL,
-      redeemed_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS message (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      sender_id INTEGER NOT NULL REFERENCES users(id),
-      receiver_id INTEGER REFERENCES users(id), -- Null means sent to Customer Care general inbox
-      content TEXT NOT NULL,
-      is_read INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS notification (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, -- target recipient
-      title TEXT NOT NULL,
-      message TEXT NOT NULL,
-      is_read INTEGER DEFAULT 0,
-      type TEXT, -- order_status, coupon, chat, low_stock, career
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS career_applications (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      email TEXT NOT NULL,
-      phone TEXT,
-      role_interest TEXT NOT NULL,
-      resume_link TEXT,
-      cover_letter TEXT,
-      status TEXT DEFAULT 'Pending', -- Pending, Reviewed, Approved, Rejected
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS activitylog (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
-      action TEXT NOT NULL,
-      details TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-Seeding baseline database records...
-SELECT id FROM adminauth WHERE email = 'weartome@admin.com'
-SELECT id FROM users WHERE email = 'weartome@admin.com'
-SELECT id FROM category WHERE slug = 'apparel'
-SELECT id FROM category WHERE slug = 'accessories'
-SELECT id FROM category WHERE slug = 'trending'
-SELECT id FROM category WHERE slug = 'apparel'
-SELECT id FROM category WHERE slug = 'accessories'
-SELECT id FROM products WHERE slug = 'silk-midnight-gown'
-SELECT id FROM products WHERE slug = 'golden-hour-watch'
-SELECT id FROM products WHERE slug = 'cashmere-scarf'
-SELECT key FROM websitesetting WHERE key = 'site.name'
-SELECT key FROM websitesetting WHERE key = 'site.tagline'
-SELECT key FROM websitesetting WHERE key = 'site.primary_color'
-SELECT key FROM websitesetting WHERE key = 'site.primary_font'
-SELECT key FROM websitesetting WHERE key = 'site.seo_title'
-SELECT key FROM systemsetting WHERE key = 'ai_enabled'
-SELECT key FROM systemsetting WHERE key = 'voice_enabled'
-SELECT key FROM systemsetting WHERE key = 'theme_mode'
-SELECT id FROM themepreset WHERE name = 'Gucci Luxe'
-SELECT id FROM themepreset WHERE name = 'Minimal Dark'
-SELECT id FROM themepreset WHERE name = 'Vibrant Modern'
-SELECT id FROM coupons WHERE code = 'WELCOME10'
-SELECT id FROM coupons WHERE code = 'VIP500'
-Database initialization and seeding completed successfully!
-SELECT * FROM coupons WHERE code = 'WELCOME10'
-SELECT COUNT(*) as count FROM coupon_redemptions WHERE coupon_id = 1.0 AND user_id = 3.0
-SELECT c.product_id, c.quantity, p.price, p.category_id
-         FROM cart c
-         JOIN products p ON c.product_id = p.id
-         WHERE c.user_id = 3.0
- POST /api/coupons/validate 200 in 378ms
- ✓ Compiled /api/orders in 160ms (143 modules)
-PRAGMA foreign_keys = ON
-Initializing database tables...
-CREATE TABLE IF NOT EXISTS adminauth (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      email TEXT UNIQUE NOT NULL,
-      primaryPassword TEXT NOT NULL,
-      secondaryPassword TEXT,
-      failed_attempts INTEGER DEFAULT 0,
-      locked_until TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      email TEXT UNIQUE NOT NULL,
-      password TEXT NOT NULL,
-      name TEXT NOT NULL,
-      phone TEXT,
-      role TEXT NOT NULL DEFAULT 'Customer', -- Admin, Sub-admin, Manager, Customer Care, Customer
-      permissions TEXT DEFAULT '[]', -- JSON string containing overrides/permissions list
-      gender TEXT, -- Onboarding Q1
-      how_found TEXT, -- Onboarding Q2
-      style_pref TEXT, -- Onboarding Q3
-      category_pref TEXT, -- Onboarding Q4
-      promotion_tier TEXT DEFAULT 'Standard', -- Standard, Loyal, Top User, VIP
-      is_suspended INTEGER DEFAULT 0, -- 0 = Active, 1 = Suspended
-      suspended_until TEXT, -- datetime string
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS category (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT UNIQUE NOT NULL,
-      slug TEXT UNIQUE NOT NULL
-    );
-CREATE TABLE IF NOT EXISTS products (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      slug TEXT UNIQUE NOT NULL,
-      description TEXT,
-      price REAL NOT NULL,
-      stock INTEGER NOT NULL DEFAULT 0,
-      category_id INTEGER REFERENCES category(id) ON DELETE SET NULL,
-      subcategory TEXT,
-      gender_target TEXT NOT NULL DEFAULT 'unisex', -- men, women, unisex, gen-z
-      sizes TEXT DEFAULT '[]', -- JSON array of sizes: ["S", "M", "L"]
-      colors TEXT DEFAULT '[]', -- JSON array of colors: ["#000000", "#FFFFFF"]
-      quality_grade TEXT DEFAULT 'A', -- Quality / fabric grade
-      grid_position INTEGER DEFAULT NULL, -- controls manual grid placement seating
-      is_trending INTEGER DEFAULT 0, -- boolean
-      discount_percent REAL DEFAULT 0,
-      discount_active_from TEXT, -- ISO Date string
-      discount_active_to TEXT, -- ISO Date string
-      display_price_strikethrough INTEGER DEFAULT 0, -- boolean
-      min_images INTEGER DEFAULT 2,
-      max_images INTEGER DEFAULT 10,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS mediafile (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      filepath TEXT NOT NULL,
-      entity_type TEXT NOT NULL, -- 'product', 'blog', etc.
-      entity_id INTEGER NOT NULL,
-      original_filename TEXT,
-      file_size INTEGER,
-      is_primary INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS refreshtoken (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      token TEXT UNIQUE NOT NULL,
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      expires_at TEXT NOT NULL,
-      revoked INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS websitesetting (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL
-    );
-CREATE TABLE IF NOT EXISTS systemsetting (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL
-    );
-CREATE TABLE IF NOT EXISTS themepreset (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT UNIQUE NOT NULL,
-      tokens TEXT NOT NULL -- JSON string of tokens
-    );
-CREATE TABLE IF NOT EXISTS themecustomization (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      preset_id INTEGER REFERENCES themepreset(id),
-      custom_tokens TEXT NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS cart (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
-      quantity INTEGER NOT NULL,
-      size TEXT,
-      color TEXT
-    );
-CREATE TABLE IF NOT EXISTS orders (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL REFERENCES users(id),
-      total_price REAL NOT NULL,
-      discount_applied REAL DEFAULT 0,
-      coupon_code TEXT,
-      status TEXT DEFAULT 'Pending', -- Pending, Shipped, Out for Delivery, Delivered, Cancelled, Return Requested, Return Approved
-      shipping_address TEXT NOT NULL,
-      payment_ref TEXT,
-      payment_status TEXT DEFAULT 'Pending', -- Pending, Paid, Refunded
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS order_items (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
-      product_id INTEGER NOT NULL REFERENCES products(id),
-      quantity INTEGER NOT NULL,
-      price REAL NOT NULL,
-      color TEXT,
-      size TEXT
-    );
-CREATE TABLE IF NOT EXISTS coupons (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      code TEXT UNIQUE NOT NULL,
-      type TEXT NOT NULL, -- 'private', 'public_sub' (product-scoped), 'public_pro' (site-wide)
-      discount_value REAL NOT NULL, -- percentage or flat amount
-      discount_type TEXT NOT NULL DEFAULT 'percent', -- 'percent' or 'flat'
-      max_redemptions INTEGER DEFAULT 9999, -- Private usage cap
-      redeemed_count INTEGER DEFAULT 0,
-      active_from TEXT, -- date string
-      active_to TEXT, -- date string
-      product_id INTEGER, -- Optional product scoping
-      category_id INTEGER, -- Optional category scoping
-      per_account_limit INTEGER DEFAULT 1,
-      is_active INTEGER DEFAULT 1,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS coupon_redemptions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      coupon_id INTEGER NOT NULL REFERENCES coupons(id) ON DELETE CASCADE,
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      order_id INTEGER REFERENCES orders(id) ON DELETE SET NULL,
-      redeemed_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS message (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      sender_id INTEGER NOT NULL REFERENCES users(id),
-      receiver_id INTEGER REFERENCES users(id), -- Null means sent to Customer Care general inbox
-      content TEXT NOT NULL,
-      is_read INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS notification (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, -- target recipient
-      title TEXT NOT NULL,
-      message TEXT NOT NULL,
-      is_read INTEGER DEFAULT 0,
-      type TEXT, -- order_status, coupon, chat, low_stock, career
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS career_applications (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      email TEXT NOT NULL,
-      phone TEXT,
-      role_interest TEXT NOT NULL,
-      resume_link TEXT,
-      cover_letter TEXT,
-      status TEXT DEFAULT 'Pending', -- Pending, Reviewed, Approved, Rejected
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS activitylog (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
-      action TEXT NOT NULL,
-      details TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-Seeding baseline database records...
-SELECT id FROM adminauth WHERE email = 'weartome@admin.com'
-SELECT id FROM users WHERE email = 'weartome@admin.com'
-SELECT id FROM category WHERE slug = 'apparel'
-SELECT id FROM category WHERE slug = 'accessories'
-SELECT id FROM category WHERE slug = 'trending'
-SELECT id FROM category WHERE slug = 'apparel'
-SELECT id FROM category WHERE slug = 'accessories'
-SELECT id FROM products WHERE slug = 'silk-midnight-gown'
-SELECT id FROM products WHERE slug = 'golden-hour-watch'
-SELECT id FROM products WHERE slug = 'cashmere-scarf'
-SELECT key FROM websitesetting WHERE key = 'site.name'
-SELECT key FROM websitesetting WHERE key = 'site.tagline'
-SELECT key FROM websitesetting WHERE key = 'site.primary_color'
-SELECT key FROM websitesetting WHERE key = 'site.primary_font'
-SELECT key FROM websitesetting WHERE key = 'site.seo_title'
-SELECT key FROM systemsetting WHERE key = 'ai_enabled'
-SELECT key FROM systemsetting WHERE key = 'voice_enabled'
-SELECT key FROM systemsetting WHERE key = 'theme_mode'
-SELECT id FROM themepreset WHERE name = 'Gucci Luxe'
-SELECT id FROM themepreset WHERE name = 'Minimal Dark'
-SELECT id FROM themepreset WHERE name = 'Vibrant Modern'
-SELECT id FROM coupons WHERE code = 'WELCOME10'
-SELECT id FROM coupons WHERE code = 'VIP500'
-Database initialization and seeding completed successfully!
-SELECT c.id as cart_id, c.product_id, c.quantity, c.size, c.color,
-              p.name, p.price, p.stock, p.category_id, p.discount_percent,
-              p.discount_active_from, p.discount_active_to
-       FROM cart c
-       JOIN products p ON c.product_id = p.id
-       WHERE c.user_id = 3.0
-SELECT * FROM coupons WHERE code = 'WELCOME10'
-SELECT COUNT(*) as count FROM coupon_redemptions WHERE coupon_id = 1.0 AND user_id = 3.0
-INSERT INTO orders (user_id, total_price, discount_applied, coupon_code, status, shipping_address, payment_ref, payment_status)
-       VALUES (3.0, 19440.0, 2160.0, 'WELCOME10', 'Pending', '12 Minimalist Lane, Tokyo, Japan', 'WT-211740', 'Paid')
-SELECT id FROM orders WHERE payment_ref = 'WT-211740' ORDER BY id DESC LIMIT 1
-INSERT INTO order_items (order_id, product_id, quantity, price, color, size)
-         VALUES (1.0, 1.0, 1.0, 21600.0, '#0A0A0A', 'M')
-UPDATE products SET stock = 14.0 WHERE id = 1.0
-INSERT INTO coupon_redemptions (coupon_id, user_id, order_id) VALUES (1.0, 3.0, 1.0)
-UPDATE coupons SET redeemed_count = redeemed_count + 1 WHERE id = 1.0
-DELETE FROM cart WHERE user_id = 3.0
-INSERT INTO notification (user_id, title, message, type) VALUES (3.0, 'Order Placed Successfully', 'Your Wear Tome order #1 of ₹19'/*+52 bytes*/, 'order_status')
-SELECT id FROM users WHERE role = 'Admin'
-INSERT INTO notification (user_id, title, message, type) VALUES (1.0, 'New Order Received', 'Order #1 totaling ₹19440 was s'/*+21 bytes*/, 'order_status')
-INSERT INTO notification (user_id, title, message, type) VALUES (2.0, 'New Order Received', 'Order #1 totaling ₹19440 was s'/*+21 bytes*/, 'order_status')
-INSERT INTO activitylog (user_id, action, details) VALUES (3.0, 'Place Order', 'Placed order #1 with total: ₹1'/*+28 bytes*/)
- POST /api/orders 200 in 380ms
- ✓ Compiled in 87ms (202 modules)
- ✓ Compiled in 70ms (202 modules)
- ✓ Compiled in 62ms (202 modules)
- ✓ Compiled in 63ms (202 modules)
- ✓ Compiled /api/auth/login in 393ms (139 modules)
-PRAGMA foreign_keys = ON
-Initializing database tables...
-CREATE TABLE IF NOT EXISTS adminauth (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      email TEXT UNIQUE NOT NULL,
-      primaryPassword TEXT NOT NULL,
-      secondaryPassword TEXT,
-      failed_attempts INTEGER DEFAULT 0,
-      locked_until TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      email TEXT UNIQUE NOT NULL,
-      password TEXT NOT NULL,
-      name TEXT NOT NULL,
-      phone TEXT,
-      role TEXT NOT NULL DEFAULT 'Customer', -- Admin, Sub-admin, Manager, Customer Care, Customer
-      permissions TEXT DEFAULT '[]', -- JSON string containing overrides/permissions list
-      gender TEXT, -- Onboarding Q1
-      how_found TEXT, -- Onboarding Q2
-      style_pref TEXT, -- Onboarding Q3
-      category_pref TEXT, -- Onboarding Q4
-      promotion_tier TEXT DEFAULT 'Standard', -- Standard, Loyal, Top User, VIP
-      is_suspended INTEGER DEFAULT 0, -- 0 = Active, 1 = Suspended
-      suspended_until TEXT, -- datetime string
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS category (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT UNIQUE NOT NULL,
-      slug TEXT UNIQUE NOT NULL
-    );
-CREATE TABLE IF NOT EXISTS products (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      slug TEXT UNIQUE NOT NULL,
-      description TEXT,
-      price REAL NOT NULL,
-      stock INTEGER NOT NULL DEFAULT 0,
-      category_id INTEGER REFERENCES category(id) ON DELETE SET NULL,
-      subcategory TEXT,
-      gender_target TEXT NOT NULL DEFAULT 'unisex', -- men, women, unisex, gen-z
-      sizes TEXT DEFAULT '[]', -- JSON array of sizes: ["S", "M", "L"]
-      colors TEXT DEFAULT '[]', -- JSON array of colors: ["#000000", "#FFFFFF"]
-      quality_grade TEXT DEFAULT 'A', -- Quality / fabric grade
-      grid_position INTEGER DEFAULT NULL, -- controls manual grid placement seating
-      is_trending INTEGER DEFAULT 0, -- boolean
-      discount_percent REAL DEFAULT 0,
-      discount_active_from TEXT, -- ISO Date string
-      discount_active_to TEXT, -- ISO Date string
-      display_price_strikethrough INTEGER DEFAULT 0, -- boolean
-      min_images INTEGER DEFAULT 2,
-      max_images INTEGER DEFAULT 10,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS mediafile (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      filepath TEXT NOT NULL,
-      entity_type TEXT NOT NULL, -- 'product', 'blog', etc.
-      entity_id INTEGER NOT NULL,
-      original_filename TEXT,
-      file_size INTEGER,
-      is_primary INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS refreshtoken (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      token TEXT UNIQUE NOT NULL,
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      expires_at TEXT NOT NULL,
-      revoked INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS websitesetting (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL
-    );
-CREATE TABLE IF NOT EXISTS systemsetting (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL
-    );
-CREATE TABLE IF NOT EXISTS themepreset (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT UNIQUE NOT NULL,
-      tokens TEXT NOT NULL -- JSON string of tokens
-    );
-CREATE TABLE IF NOT EXISTS themecustomization (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      preset_id INTEGER REFERENCES themepreset(id),
-      custom_tokens TEXT NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS cart (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
-      quantity INTEGER NOT NULL,
-      size TEXT,
-      color TEXT
-    );
-CREATE TABLE IF NOT EXISTS orders (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL REFERENCES users(id),
-      total_price REAL NOT NULL,
-      discount_applied REAL DEFAULT 0,
-      coupon_code TEXT,
-      status TEXT DEFAULT 'Pending', -- Pending, Shipped, Out for Delivery, Delivered, Cancelled, Return Requested, Return Approved
-      shipping_address TEXT NOT NULL,
-      payment_ref TEXT,
-      payment_status TEXT DEFAULT 'Pending', -- Pending, Paid, Refunded
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS order_items (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
-      product_id INTEGER NOT NULL REFERENCES products(id),
-      quantity INTEGER NOT NULL,
-      price REAL NOT NULL,
-      color TEXT,
-      size TEXT
-    );
-CREATE TABLE IF NOT EXISTS coupons (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      code TEXT UNIQUE NOT NULL,
-      type TEXT NOT NULL, -- 'private', 'public_sub' (product-scoped), 'public_pro' (site-wide)
-      discount_value REAL NOT NULL, -- percentage or flat amount
-      discount_type TEXT NOT NULL DEFAULT 'percent', -- 'percent' or 'flat'
-      max_redemptions INTEGER DEFAULT 9999, -- Private usage cap
-      redeemed_count INTEGER DEFAULT 0,
-      active_from TEXT, -- date string
-      active_to TEXT, -- date string
-      product_id INTEGER, -- Optional product scoping
-      category_id INTEGER, -- Optional category scoping
-      per_account_limit INTEGER DEFAULT 1,
-      is_active INTEGER DEFAULT 1,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS coupon_redemptions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      coupon_id INTEGER NOT NULL REFERENCES coupons(id) ON DELETE CASCADE,
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      order_id INTEGER REFERENCES orders(id) ON DELETE SET NULL,
-      redeemed_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS message (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      sender_id INTEGER NOT NULL REFERENCES users(id),
-      receiver_id INTEGER REFERENCES users(id), -- Null means sent to Customer Care general inbox
-      content TEXT NOT NULL,
-      is_read INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS notification (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, -- target recipient
-      title TEXT NOT NULL,
-      message TEXT NOT NULL,
-      is_read INTEGER DEFAULT 0,
-      type TEXT, -- order_status, coupon, chat, low_stock, career
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS career_applications (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      email TEXT NOT NULL,
-      phone TEXT,
-      role_interest TEXT NOT NULL,
-      resume_link TEXT,
-      cover_letter TEXT,
-      status TEXT DEFAULT 'Pending', -- Pending, Reviewed, Approved, Rejected
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS activitylog (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
-      action TEXT NOT NULL,
-      details TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-Seeding baseline database records...
-SELECT id FROM adminauth WHERE email = 'weartome@admin.com'
-SELECT id FROM users WHERE email = 'weartome@admin.com'
-SELECT id FROM category WHERE slug = 'apparel'
-SELECT id FROM category WHERE slug = 'accessories'
-SELECT id FROM category WHERE slug = 'trending'
-SELECT id FROM category WHERE slug = 'apparel'
-SELECT id FROM category WHERE slug = 'accessories'
-SELECT id FROM products WHERE slug = 'silk-midnight-gown'
-SELECT id FROM products WHERE slug = 'golden-hour-watch'
-SELECT id FROM products WHERE slug = 'cashmere-scarf'
-SELECT key FROM websitesetting WHERE key = 'site.name'
-SELECT key FROM websitesetting WHERE key = 'site.tagline'
-SELECT key FROM websitesetting WHERE key = 'site.primary_color'
-SELECT key FROM websitesetting WHERE key = 'site.primary_font'
-SELECT key FROM websitesetting WHERE key = 'site.seo_title'
-SELECT key FROM systemsetting WHERE key = 'ai_enabled'
-SELECT key FROM systemsetting WHERE key = 'voice_enabled'
-SELECT key FROM systemsetting WHERE key = 'theme_mode'
-SELECT id FROM themepreset WHERE name = 'Gucci Luxe'
-SELECT id FROM themepreset WHERE name = 'Minimal Dark'
-SELECT id FROM themepreset WHERE name = 'Vibrant Modern'
-SELECT id FROM coupons WHERE code = 'WELCOME10'
-SELECT id FROM coupons WHERE code = 'VIP500'
-Database initialization and seeding completed successfully!
-SELECT * FROM adminauth WHERE email = 'weartome@admin.com'
-SELECT * FROM users WHERE email = 'weartome@admin.com'
-INSERT INTO activitylog (user_id, action, details) VALUES (1.0, 'User Login', 'Successful login with role: Admi'/*+1 bytes*/)
- POST /api/auth/login 200 in 841ms
- ✓ Compiled /api/products in 104ms (141 modules)
-PRAGMA foreign_keys = ON
-Initializing database tables...
-CREATE TABLE IF NOT EXISTS adminauth (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      email TEXT UNIQUE NOT NULL,
-      primaryPassword TEXT NOT NULL,
-      secondaryPassword TEXT,
-      failed_attempts INTEGER DEFAULT 0,
-      locked_until TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      email TEXT UNIQUE NOT NULL,
-      password TEXT NOT NULL,
-      name TEXT NOT NULL,
-      phone TEXT,
-      role TEXT NOT NULL DEFAULT 'Customer', -- Admin, Sub-admin, Manager, Customer Care, Customer
-      permissions TEXT DEFAULT '[]', -- JSON string containing overrides/permissions list
-      gender TEXT, -- Onboarding Q1
-      how_found TEXT, -- Onboarding Q2
-      style_pref TEXT, -- Onboarding Q3
-      category_pref TEXT, -- Onboarding Q4
-      promotion_tier TEXT DEFAULT 'Standard', -- Standard, Loyal, Top User, VIP
-      is_suspended INTEGER DEFAULT 0, -- 0 = Active, 1 = Suspended
-      suspended_until TEXT, -- datetime string
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS category (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT UNIQUE NOT NULL,
-      slug TEXT UNIQUE NOT NULL
-    );
-CREATE TABLE IF NOT EXISTS products (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      slug TEXT UNIQUE NOT NULL,
-      description TEXT,
-      price REAL NOT NULL,
-      stock INTEGER NOT NULL DEFAULT 0,
-      category_id INTEGER REFERENCES category(id) ON DELETE SET NULL,
-      subcategory TEXT,
-      gender_target TEXT NOT NULL DEFAULT 'unisex', -- men, women, unisex, gen-z
-      sizes TEXT DEFAULT '[]', -- JSON array of sizes: ["S", "M", "L"]
-      colors TEXT DEFAULT '[]', -- JSON array of colors: ["#000000", "#FFFFFF"]
-      quality_grade TEXT DEFAULT 'A', -- Quality / fabric grade
-      grid_position INTEGER DEFAULT NULL, -- controls manual grid placement seating
-      is_trending INTEGER DEFAULT 0, -- boolean
-      discount_percent REAL DEFAULT 0,
-      discount_active_from TEXT, -- ISO Date string
-      discount_active_to TEXT, -- ISO Date string
-      display_price_strikethrough INTEGER DEFAULT 0, -- boolean
-      min_images INTEGER DEFAULT 2,
-      max_images INTEGER DEFAULT 10,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS mediafile (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      filepath TEXT NOT NULL,
-      entity_type TEXT NOT NULL, -- 'product', 'blog', etc.
-      entity_id INTEGER NOT NULL,
-      original_filename TEXT,
-      file_size INTEGER,
-      is_primary INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS refreshtoken (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      token TEXT UNIQUE NOT NULL,
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      expires_at TEXT NOT NULL,
-      revoked INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS websitesetting (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL
-    );
-CREATE TABLE IF NOT EXISTS systemsetting (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL
-    );
-CREATE TABLE IF NOT EXISTS themepreset (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT UNIQUE NOT NULL,
-      tokens TEXT NOT NULL -- JSON string of tokens
-    );
-CREATE TABLE IF NOT EXISTS themecustomization (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      preset_id INTEGER REFERENCES themepreset(id),
-      custom_tokens TEXT NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS cart (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
-      quantity INTEGER NOT NULL,
-      size TEXT,
-      color TEXT
-    );
-CREATE TABLE IF NOT EXISTS orders (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL REFERENCES users(id),
-      total_price REAL NOT NULL,
-      discount_applied REAL DEFAULT 0,
-      coupon_code TEXT,
-      status TEXT DEFAULT 'Pending', -- Pending, Shipped, Out for Delivery, Delivered, Cancelled, Return Requested, Return Approved
-      shipping_address TEXT NOT NULL,
-      payment_ref TEXT,
-      payment_status TEXT DEFAULT 'Pending', -- Pending, Paid, Refunded
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS order_items (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
-      product_id INTEGER NOT NULL REFERENCES products(id),
-      quantity INTEGER NOT NULL,
-      price REAL NOT NULL,
-      color TEXT,
-      size TEXT
-    );
-CREATE TABLE IF NOT EXISTS coupons (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      code TEXT UNIQUE NOT NULL,
-      type TEXT NOT NULL, -- 'private', 'public_sub' (product-scoped), 'public_pro' (site-wide)
-      discount_value REAL NOT NULL, -- percentage or flat amount
-      discount_type TEXT NOT NULL DEFAULT 'percent', -- 'percent' or 'flat'
-      max_redemptions INTEGER DEFAULT 9999, -- Private usage cap
-      redeemed_count INTEGER DEFAULT 0,
-      active_from TEXT, -- date string
-      active_to TEXT, -- date string
-      product_id INTEGER, -- Optional product scoping
-      category_id INTEGER, -- Optional category scoping
-      per_account_limit INTEGER DEFAULT 1,
-      is_active INTEGER DEFAULT 1,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS coupon_redemptions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      coupon_id INTEGER NOT NULL REFERENCES coupons(id) ON DELETE CASCADE,
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      order_id INTEGER REFERENCES orders(id) ON DELETE SET NULL,
-      redeemed_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS message (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      sender_id INTEGER NOT NULL REFERENCES users(id),
-      receiver_id INTEGER REFERENCES users(id), -- Null means sent to Customer Care general inbox
-      content TEXT NOT NULL,
-      is_read INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS notification (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, -- target recipient
-      title TEXT NOT NULL,
-      message TEXT NOT NULL,
-      is_read INTEGER DEFAULT 0,
-      type TEXT, -- order_status, coupon, chat, low_stock, career
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS career_applications (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      email TEXT NOT NULL,
-      phone TEXT,
-      role_interest TEXT NOT NULL,
-      resume_link TEXT,
-      cover_letter TEXT,
-      status TEXT DEFAULT 'Pending', -- Pending, Reviewed, Approved, Rejected
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS activitylog (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
-      action TEXT NOT NULL,
-      details TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-Seeding baseline database records...
-SELECT id FROM adminauth WHERE email = 'weartome@admin.com'
-SELECT id FROM users WHERE email = 'weartome@admin.com'
-SELECT id FROM category WHERE slug = 'apparel'
-SELECT id FROM category WHERE slug = 'accessories'
-SELECT id FROM category WHERE slug = 'trending'
-SELECT id FROM category WHERE slug = 'apparel'
-SELECT id FROM category WHERE slug = 'accessories'
-SELECT id FROM products WHERE slug = 'silk-midnight-gown'
-SELECT id FROM products WHERE slug = 'golden-hour-watch'
-SELECT id FROM products WHERE slug = 'cashmere-scarf'
-SELECT key FROM websitesetting WHERE key = 'site.name'
-SELECT key FROM websitesetting WHERE key = 'site.tagline'
-SELECT key FROM websitesetting WHERE key = 'site.primary_color'
-SELECT key FROM websitesetting WHERE key = 'site.primary_font'
-SELECT key FROM websitesetting WHERE key = 'site.seo_title'
-SELECT key FROM systemsetting WHERE key = 'ai_enabled'
-SELECT key FROM systemsetting WHERE key = 'voice_enabled'
-SELECT key FROM systemsetting WHERE key = 'theme_mode'
-SELECT id FROM themepreset WHERE name = 'Gucci Luxe'
-SELECT id FROM themepreset WHERE name = 'Minimal Dark'
-SELECT id FROM themepreset WHERE name = 'Vibrant Modern'
-SELECT id FROM coupons WHERE code = 'WELCOME10'
-SELECT id FROM coupons WHERE code = 'VIP500'
-Database initialization and seeding completed successfully!
-SELECT * FROM products ORDER BY CASE WHEN grid_position IS NULL THEN 999999 ELSE grid_position END ASC, id DESC
-SELECT filepath FROM mediafile WHERE entity_type = 'product' AND entity_id = 1.0 ORDER BY is_primary DESC LIMIT 2
-SELECT filepath FROM mediafile WHERE entity_type = 'product' AND entity_id = 2.0 ORDER BY is_primary DESC LIMIT 2
-SELECT filepath FROM mediafile WHERE entity_type = 'product' AND entity_id = 3.0 ORDER BY is_primary DESC LIMIT 2
- GET /api/products 200 in 284ms
- ✓ Compiled /api/products/placement in 80ms (141 modules)
-PRAGMA foreign_keys = ON
-Initializing database tables...
-CREATE TABLE IF NOT EXISTS adminauth (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      email TEXT UNIQUE NOT NULL,
-      primaryPassword TEXT NOT NULL,
-      secondaryPassword TEXT,
-      failed_attempts INTEGER DEFAULT 0,
-      locked_until TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      email TEXT UNIQUE NOT NULL,
-      password TEXT NOT NULL,
-      name TEXT NOT NULL,
-      phone TEXT,
-      role TEXT NOT NULL DEFAULT 'Customer', -- Admin, Sub-admin, Manager, Customer Care, Customer
-      permissions TEXT DEFAULT '[]', -- JSON string containing overrides/permissions list
-      gender TEXT, -- Onboarding Q1
-      how_found TEXT, -- Onboarding Q2
-      style_pref TEXT, -- Onboarding Q3
-      category_pref TEXT, -- Onboarding Q4
-      promotion_tier TEXT DEFAULT 'Standard', -- Standard, Loyal, Top User, VIP
-      is_suspended INTEGER DEFAULT 0, -- 0 = Active, 1 = Suspended
-      suspended_until TEXT, -- datetime string
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS category (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT UNIQUE NOT NULL,
-      slug TEXT UNIQUE NOT NULL
-    );
-CREATE TABLE IF NOT EXISTS products (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      slug TEXT UNIQUE NOT NULL,
-      description TEXT,
-      price REAL NOT NULL,
-      stock INTEGER NOT NULL DEFAULT 0,
-      category_id INTEGER REFERENCES category(id) ON DELETE SET NULL,
-      subcategory TEXT,
-      gender_target TEXT NOT NULL DEFAULT 'unisex', -- men, women, unisex, gen-z
-      sizes TEXT DEFAULT '[]', -- JSON array of sizes: ["S", "M", "L"]
-      colors TEXT DEFAULT '[]', -- JSON array of colors: ["#000000", "#FFFFFF"]
-      quality_grade TEXT DEFAULT 'A', -- Quality / fabric grade
-      grid_position INTEGER DEFAULT NULL, -- controls manual grid placement seating
-      is_trending INTEGER DEFAULT 0, -- boolean
-      discount_percent REAL DEFAULT 0,
-      discount_active_from TEXT, -- ISO Date string
-      discount_active_to TEXT, -- ISO Date string
-      display_price_strikethrough INTEGER DEFAULT 0, -- boolean
-      min_images INTEGER DEFAULT 2,
-      max_images INTEGER DEFAULT 10,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS mediafile (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      filepath TEXT NOT NULL,
-      entity_type TEXT NOT NULL, -- 'product', 'blog', etc.
-      entity_id INTEGER NOT NULL,
-      original_filename TEXT,
-      file_size INTEGER,
-      is_primary INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS refreshtoken (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      token TEXT UNIQUE NOT NULL,
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      expires_at TEXT NOT NULL,
-      revoked INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS websitesetting (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL
-    );
-CREATE TABLE IF NOT EXISTS systemsetting (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL
-    );
-CREATE TABLE IF NOT EXISTS themepreset (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT UNIQUE NOT NULL,
-      tokens TEXT NOT NULL -- JSON string of tokens
-    );
-CREATE TABLE IF NOT EXISTS themecustomization (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      preset_id INTEGER REFERENCES themepreset(id),
-      custom_tokens TEXT NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS cart (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
-      quantity INTEGER NOT NULL,
-      size TEXT,
-      color TEXT
-    );
-CREATE TABLE IF NOT EXISTS orders (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL REFERENCES users(id),
-      total_price REAL NOT NULL,
-      discount_applied REAL DEFAULT 0,
-      coupon_code TEXT,
-      status TEXT DEFAULT 'Pending', -- Pending, Shipped, Out for Delivery, Delivered, Cancelled, Return Requested, Return Approved
-      shipping_address TEXT NOT NULL,
-      payment_ref TEXT,
-      payment_status TEXT DEFAULT 'Pending', -- Pending, Paid, Refunded
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS order_items (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
-      product_id INTEGER NOT NULL REFERENCES products(id),
-      quantity INTEGER NOT NULL,
-      price REAL NOT NULL,
-      color TEXT,
-      size TEXT
-    );
-CREATE TABLE IF NOT EXISTS coupons (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      code TEXT UNIQUE NOT NULL,
-      type TEXT NOT NULL, -- 'private', 'public_sub' (product-scoped), 'public_pro' (site-wide)
-      discount_value REAL NOT NULL, -- percentage or flat amount
-      discount_type TEXT NOT NULL DEFAULT 'percent', -- 'percent' or 'flat'
-      max_redemptions INTEGER DEFAULT 9999, -- Private usage cap
-      redeemed_count INTEGER DEFAULT 0,
-      active_from TEXT, -- date string
-      active_to TEXT, -- date string
-      product_id INTEGER, -- Optional product scoping
-      category_id INTEGER, -- Optional category scoping
-      per_account_limit INTEGER DEFAULT 1,
-      is_active INTEGER DEFAULT 1,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS coupon_redemptions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      coupon_id INTEGER NOT NULL REFERENCES coupons(id) ON DELETE CASCADE,
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      order_id INTEGER REFERENCES orders(id) ON DELETE SET NULL,
-      redeemed_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS message (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      sender_id INTEGER NOT NULL REFERENCES users(id),
-      receiver_id INTEGER REFERENCES users(id), -- Null means sent to Customer Care general inbox
-      content TEXT NOT NULL,
-      is_read INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS notification (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, -- target recipient
-      title TEXT NOT NULL,
-      message TEXT NOT NULL,
-      is_read INTEGER DEFAULT 0,
-      type TEXT, -- order_status, coupon, chat, low_stock, career
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS career_applications (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      email TEXT NOT NULL,
-      phone TEXT,
-      role_interest TEXT NOT NULL,
-      resume_link TEXT,
-      cover_letter TEXT,
-      status TEXT DEFAULT 'Pending', -- Pending, Reviewed, Approved, Rejected
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS activitylog (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
-      action TEXT NOT NULL,
-      details TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-Seeding baseline database records...
-SELECT id FROM adminauth WHERE email = 'weartome@admin.com'
-SELECT id FROM users WHERE email = 'weartome@admin.com'
-SELECT id FROM category WHERE slug = 'apparel'
-SELECT id FROM category WHERE slug = 'accessories'
-SELECT id FROM category WHERE slug = 'trending'
-SELECT id FROM category WHERE slug = 'apparel'
-SELECT id FROM category WHERE slug = 'accessories'
-SELECT id FROM products WHERE slug = 'silk-midnight-gown'
-SELECT id FROM products WHERE slug = 'golden-hour-watch'
-SELECT id FROM products WHERE slug = 'cashmere-scarf'
-SELECT key FROM websitesetting WHERE key = 'site.name'
-SELECT key FROM websitesetting WHERE key = 'site.tagline'
-SELECT key FROM websitesetting WHERE key = 'site.primary_color'
-SELECT key FROM websitesetting WHERE key = 'site.primary_font'
-SELECT key FROM websitesetting WHERE key = 'site.seo_title'
-SELECT key FROM systemsetting WHERE key = 'ai_enabled'
-SELECT key FROM systemsetting WHERE key = 'voice_enabled'
-SELECT key FROM systemsetting WHERE key = 'theme_mode'
-SELECT id FROM themepreset WHERE name = 'Gucci Luxe'
-SELECT id FROM themepreset WHERE name = 'Minimal Dark'
-SELECT id FROM themepreset WHERE name = 'Vibrant Modern'
-SELECT id FROM coupons WHERE code = 'WELCOME10'
-SELECT id FROM coupons WHERE code = 'VIP500'
-Database initialization and seeding completed successfully!
- POST /api/products/placement 401 in 241ms
-UPDATE products SET grid_position = 5.0 WHERE id = 1.0
-UPDATE products SET grid_position = 1.0 WHERE id = 3.0
-INSERT INTO activitylog (user_id, action, details) VALUES (1.0, 'Update Grid Placement', 'Updated manual grid positions fo'/*+13 bytes*/)
- POST /api/products/placement 200 in 27ms
-SELECT * FROM products ORDER BY CASE WHEN grid_position IS NULL THEN 999999 ELSE grid_position END ASC, id DESC
-SELECT filepath FROM mediafile WHERE entity_type = 'product' AND entity_id = 3.0 ORDER BY is_primary DESC LIMIT 2
-SELECT filepath FROM mediafile WHERE entity_type = 'product' AND entity_id = 2.0 ORDER BY is_primary DESC LIMIT 2
-SELECT filepath FROM mediafile WHERE entity_type = 'product' AND entity_id = 1.0 ORDER BY is_primary DESC LIMIT 2
- GET /api/products 200 in 14ms
- ✓ Compiled in 88ms (202 modules)
- ✓ Compiled in 670ms (202 modules)
- ✓ Compiled in 161ms (202 modules)
- ✓ Compiled in 102ms (202 modules)
- ✓ Compiled in 98ms (202 modules)
- ✓ Compiled in 89ms (202 modules)
- ○ Compiling /api/auth/login ...
- ✓ Compiled /api/auth/login in 628ms (139 modules)
-PRAGMA foreign_keys = ON
-Initializing database tables...
-CREATE TABLE IF NOT EXISTS adminauth (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      email TEXT UNIQUE NOT NULL,
-      primaryPassword TEXT NOT NULL,
-      secondaryPassword TEXT,
-      failed_attempts INTEGER DEFAULT 0,
-      locked_until TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      email TEXT UNIQUE NOT NULL,
-      password TEXT NOT NULL,
-      name TEXT NOT NULL,
-      phone TEXT,
-      role TEXT NOT NULL DEFAULT 'Customer', -- Admin, Sub-admin, Manager, Customer Care, Customer
-      permissions TEXT DEFAULT '[]', -- JSON string containing overrides/permissions list
-      gender TEXT, -- Onboarding Q1
-      how_found TEXT, -- Onboarding Q2
-      style_pref TEXT, -- Onboarding Q3
-      category_pref TEXT, -- Onboarding Q4
-      promotion_tier TEXT DEFAULT 'Standard', -- Standard, Loyal, Top User, VIP
-      is_suspended INTEGER DEFAULT 0, -- 0 = Active, 1 = Suspended
-      suspended_until TEXT, -- datetime string
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS category (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT UNIQUE NOT NULL,
-      slug TEXT UNIQUE NOT NULL
-    );
-CREATE TABLE IF NOT EXISTS products (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      slug TEXT UNIQUE NOT NULL,
-      description TEXT,
-      price REAL NOT NULL,
-      stock INTEGER NOT NULL DEFAULT 0,
-      category_id INTEGER REFERENCES category(id) ON DELETE SET NULL,
-      subcategory TEXT,
-      gender_target TEXT NOT NULL DEFAULT 'unisex', -- men, women, unisex, gen-z
-      sizes TEXT DEFAULT '[]', -- JSON array of sizes: ["S", "M", "L"]
-      colors TEXT DEFAULT '[]', -- JSON array of colors: ["#000000", "#FFFFFF"]
-      quality_grade TEXT DEFAULT 'A', -- Quality / fabric grade
-      grid_position INTEGER DEFAULT NULL, -- controls manual grid placement seating
-      is_trending INTEGER DEFAULT 0, -- boolean
-      discount_percent REAL DEFAULT 0,
-      discount_active_from TEXT, -- ISO Date string
-      discount_active_to TEXT, -- ISO Date string
-      display_price_strikethrough INTEGER DEFAULT 0, -- boolean
-      min_images INTEGER DEFAULT 2,
-      max_images INTEGER DEFAULT 10,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS mediafile (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      filepath TEXT NOT NULL,
-      entity_type TEXT NOT NULL, -- 'product', 'blog', etc.
-      entity_id INTEGER NOT NULL,
-      original_filename TEXT,
-      file_size INTEGER,
-      is_primary INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS refreshtoken (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      token TEXT UNIQUE NOT NULL,
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      expires_at TEXT NOT NULL,
-      revoked INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS websitesetting (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL
-    );
-CREATE TABLE IF NOT EXISTS systemsetting (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL
-    );
-CREATE TABLE IF NOT EXISTS themepreset (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT UNIQUE NOT NULL,
-      tokens TEXT NOT NULL -- JSON string of tokens
-    );
-CREATE TABLE IF NOT EXISTS themecustomization (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      preset_id INTEGER REFERENCES themepreset(id),
-      custom_tokens TEXT NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS cart (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
-      quantity INTEGER NOT NULL,
-      size TEXT,
-      color TEXT
-    );
-CREATE TABLE IF NOT EXISTS orders (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL REFERENCES users(id),
-      total_price REAL NOT NULL,
-      discount_applied REAL DEFAULT 0,
-      coupon_code TEXT,
-      status TEXT DEFAULT 'Pending', -- Pending, Shipped, Out for Delivery, Delivered, Cancelled, Return Requested, Return Approved
-      shipping_address TEXT NOT NULL,
-      payment_ref TEXT,
-      payment_status TEXT DEFAULT 'Pending', -- Pending, Paid, Refunded
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS order_items (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
-      product_id INTEGER NOT NULL REFERENCES products(id),
-      quantity INTEGER NOT NULL,
-      price REAL NOT NULL,
-      color TEXT,
-      size TEXT
-    );
-CREATE TABLE IF NOT EXISTS coupons (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      code TEXT UNIQUE NOT NULL,
-      type TEXT NOT NULL, -- 'private', 'public_sub' (product-scoped), 'public_pro' (site-wide)
-      discount_value REAL NOT NULL, -- percentage or flat amount
-      discount_type TEXT NOT NULL DEFAULT 'percent', -- 'percent' or 'flat'
-      max_redemptions INTEGER DEFAULT 9999, -- Private usage cap
-      redeemed_count INTEGER DEFAULT 0,
-      active_from TEXT, -- date string
-      active_to TEXT, -- date string
-      product_id INTEGER, -- Optional product scoping
-      category_id INTEGER, -- Optional category scoping
-      per_account_limit INTEGER DEFAULT 1,
-      is_active INTEGER DEFAULT 1,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS coupon_redemptions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      coupon_id INTEGER NOT NULL REFERENCES coupons(id) ON DELETE CASCADE,
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      order_id INTEGER REFERENCES orders(id) ON DELETE SET NULL,
-      redeemed_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS message (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      sender_id INTEGER NOT NULL REFERENCES users(id),
-      receiver_id INTEGER REFERENCES users(id), -- Null means sent to Customer Care general inbox
-      content TEXT NOT NULL,
-      is_read INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS notification (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, -- target recipient
-      title TEXT NOT NULL,
-      message TEXT NOT NULL,
-      is_read INTEGER DEFAULT 0,
-      type TEXT, -- order_status, coupon, chat, low_stock, career
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS career_applications (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      email TEXT NOT NULL,
-      phone TEXT,
-      role_interest TEXT NOT NULL,
-      resume_link TEXT,
-      cover_letter TEXT,
-      status TEXT DEFAULT 'Pending', -- Pending, Reviewed, Approved, Rejected
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS activitylog (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
-      action TEXT NOT NULL,
-      details TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-Seeding baseline database records...
-SELECT id FROM adminauth WHERE email = 'weartome@admin.com'
-SELECT id FROM users WHERE email = 'weartome@admin.com'
-SELECT id FROM category WHERE slug = 'apparel'
-SELECT id FROM category WHERE slug = 'accessories'
-SELECT id FROM category WHERE slug = 'trending'
-SELECT id FROM category WHERE slug = 'apparel'
-SELECT id FROM category WHERE slug = 'accessories'
-SELECT id FROM products WHERE slug = 'silk-midnight-gown'
-SELECT id FROM products WHERE slug = 'golden-hour-watch'
-SELECT id FROM products WHERE slug = 'cashmere-scarf'
-SELECT key FROM websitesetting WHERE key = 'site.name'
-SELECT key FROM websitesetting WHERE key = 'site.tagline'
-SELECT key FROM websitesetting WHERE key = 'site.primary_color'
-SELECT key FROM websitesetting WHERE key = 'site.primary_font'
-SELECT key FROM websitesetting WHERE key = 'site.seo_title'
-SELECT key FROM systemsetting WHERE key = 'ai_enabled'
-SELECT key FROM systemsetting WHERE key = 'voice_enabled'
-SELECT key FROM systemsetting WHERE key = 'theme_mode'
-SELECT id FROM themepreset WHERE name = 'Gucci Luxe'
-SELECT id FROM themepreset WHERE name = 'Minimal Dark'
-SELECT id FROM themepreset WHERE name = 'Vibrant Modern'
-SELECT id FROM coupons WHERE code = 'WELCOME10'
-SELECT id FROM coupons WHERE code = 'VIP500'
-Database initialization and seeding completed successfully!
-SELECT * FROM adminauth WHERE email = 'testcustomer@weartome.com'
-SELECT * FROM users WHERE email = 'testcustomer@weartome.com'
-INSERT INTO activitylog (user_id, action, details) VALUES (3.0, 'User Login', 'Successful login with role: Cust'/*+4 bytes*/)
- POST /api/auth/login 200 in 1154ms
- ✓ Compiled /api/products in 116ms (141 modules)
-PRAGMA foreign_keys = ON
-Initializing database tables...
-CREATE TABLE IF NOT EXISTS adminauth (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      email TEXT UNIQUE NOT NULL,
-      primaryPassword TEXT NOT NULL,
-      secondaryPassword TEXT,
-      failed_attempts INTEGER DEFAULT 0,
-      locked_until TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      email TEXT UNIQUE NOT NULL,
-      password TEXT NOT NULL,
-      name TEXT NOT NULL,
-      phone TEXT,
-      role TEXT NOT NULL DEFAULT 'Customer', -- Admin, Sub-admin, Manager, Customer Care, Customer
-      permissions TEXT DEFAULT '[]', -- JSON string containing overrides/permissions list
-      gender TEXT, -- Onboarding Q1
-      how_found TEXT, -- Onboarding Q2
-      style_pref TEXT, -- Onboarding Q3
-      category_pref TEXT, -- Onboarding Q4
-      promotion_tier TEXT DEFAULT 'Standard', -- Standard, Loyal, Top User, VIP
-      is_suspended INTEGER DEFAULT 0, -- 0 = Active, 1 = Suspended
-      suspended_until TEXT, -- datetime string
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS category (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT UNIQUE NOT NULL,
-      slug TEXT UNIQUE NOT NULL
-    );
-CREATE TABLE IF NOT EXISTS products (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      slug TEXT UNIQUE NOT NULL,
-      description TEXT,
-      price REAL NOT NULL,
-      stock INTEGER NOT NULL DEFAULT 0,
-      category_id INTEGER REFERENCES category(id) ON DELETE SET NULL,
-      subcategory TEXT,
-      gender_target TEXT NOT NULL DEFAULT 'unisex', -- men, women, unisex, gen-z
-      sizes TEXT DEFAULT '[]', -- JSON array of sizes: ["S", "M", "L"]
-      colors TEXT DEFAULT '[]', -- JSON array of colors: ["#000000", "#FFFFFF"]
-      quality_grade TEXT DEFAULT 'A', -- Quality / fabric grade
-      grid_position INTEGER DEFAULT NULL, -- controls manual grid placement seating
-      is_trending INTEGER DEFAULT 0, -- boolean
-      discount_percent REAL DEFAULT 0,
-      discount_active_from TEXT, -- ISO Date string
-      discount_active_to TEXT, -- ISO Date string
-      display_price_strikethrough INTEGER DEFAULT 0, -- boolean
-      min_images INTEGER DEFAULT 2,
-      max_images INTEGER DEFAULT 10,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS mediafile (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      filepath TEXT NOT NULL,
-      entity_type TEXT NOT NULL, -- 'product', 'blog', etc.
-      entity_id INTEGER NOT NULL,
-      original_filename TEXT,
-      file_size INTEGER,
-      is_primary INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS refreshtoken (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      token TEXT UNIQUE NOT NULL,
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      expires_at TEXT NOT NULL,
-      revoked INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS websitesetting (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL
-    );
-CREATE TABLE IF NOT EXISTS systemsetting (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL
-    );
-CREATE TABLE IF NOT EXISTS themepreset (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT UNIQUE NOT NULL,
-      tokens TEXT NOT NULL -- JSON string of tokens
-    );
-CREATE TABLE IF NOT EXISTS themecustomization (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      preset_id INTEGER REFERENCES themepreset(id),
-      custom_tokens TEXT NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS cart (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
-      quantity INTEGER NOT NULL,
-      size TEXT,
-      color TEXT
-    );
-CREATE TABLE IF NOT EXISTS orders (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL REFERENCES users(id),
-      total_price REAL NOT NULL,
-      discount_applied REAL DEFAULT 0,
-      coupon_code TEXT,
-      status TEXT DEFAULT 'Pending', -- Pending, Shipped, Out for Delivery, Delivered, Cancelled, Return Requested, Return Approved
-      shipping_address TEXT NOT NULL,
-      payment_ref TEXT,
-      payment_status TEXT DEFAULT 'Pending', -- Pending, Paid, Refunded
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS order_items (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
-      product_id INTEGER NOT NULL REFERENCES products(id),
-      quantity INTEGER NOT NULL,
-      price REAL NOT NULL,
-      color TEXT,
-      size TEXT
-    );
-CREATE TABLE IF NOT EXISTS coupons (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      code TEXT UNIQUE NOT NULL,
-      type TEXT NOT NULL, -- 'private', 'public_sub' (product-scoped), 'public_pro' (site-wide)
-      discount_value REAL NOT NULL, -- percentage or flat amount
-      discount_type TEXT NOT NULL DEFAULT 'percent', -- 'percent' or 'flat'
-      max_redemptions INTEGER DEFAULT 9999, -- Private usage cap
-      redeemed_count INTEGER DEFAULT 0,
-      active_from TEXT, -- date string
-      active_to TEXT, -- date string
-      product_id INTEGER, -- Optional product scoping
-      category_id INTEGER, -- Optional category scoping
-      per_account_limit INTEGER DEFAULT 1,
-      is_active INTEGER DEFAULT 1,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS coupon_redemptions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      coupon_id INTEGER NOT NULL REFERENCES coupons(id) ON DELETE CASCADE,
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      order_id INTEGER REFERENCES orders(id) ON DELETE SET NULL,
-      redeemed_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS message (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      sender_id INTEGER NOT NULL REFERENCES users(id),
-      receiver_id INTEGER REFERENCES users(id), -- Null means sent to Customer Care general inbox
-      content TEXT NOT NULL,
-      is_read INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS notification (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, -- target recipient
-      title TEXT NOT NULL,
-      message TEXT NOT NULL,
-      is_read INTEGER DEFAULT 0,
-      type TEXT, -- order_status, coupon, chat, low_stock, career
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS career_applications (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      email TEXT NOT NULL,
-      phone TEXT,
-      role_interest TEXT NOT NULL,
-      resume_link TEXT,
-      cover_letter TEXT,
-      status TEXT DEFAULT 'Pending', -- Pending, Reviewed, Approved, Rejected
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS activitylog (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
-      action TEXT NOT NULL,
-      details TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-Seeding baseline database records...
-SELECT id FROM adminauth WHERE email = 'weartome@admin.com'
-SELECT id FROM users WHERE email = 'weartome@admin.com'
-SELECT id FROM category WHERE slug = 'apparel'
-SELECT id FROM category WHERE slug = 'accessories'
-SELECT id FROM category WHERE slug = 'trending'
-SELECT id FROM category WHERE slug = 'apparel'
-SELECT id FROM category WHERE slug = 'accessories'
-SELECT id FROM products WHERE slug = 'silk-midnight-gown'
-SELECT id FROM products WHERE slug = 'golden-hour-watch'
-SELECT id FROM products WHERE slug = 'cashmere-scarf'
-SELECT key FROM websitesetting WHERE key = 'site.name'
-SELECT key FROM websitesetting WHERE key = 'site.tagline'
-SELECT key FROM websitesetting WHERE key = 'site.primary_color'
-SELECT key FROM websitesetting WHERE key = 'site.primary_font'
-SELECT key FROM websitesetting WHERE key = 'site.seo_title'
-SELECT key FROM systemsetting WHERE key = 'ai_enabled'
-SELECT key FROM systemsetting WHERE key = 'voice_enabled'
-SELECT key FROM systemsetting WHERE key = 'theme_mode'
-SELECT id FROM themepreset WHERE name = 'Gucci Luxe'
-SELECT id FROM themepreset WHERE name = 'Minimal Dark'
-SELECT id FROM themepreset WHERE name = 'Vibrant Modern'
-SELECT id FROM coupons WHERE code = 'WELCOME10'
-SELECT id FROM coupons WHERE code = 'VIP500'
-Database initialization and seeding completed successfully!
-SELECT * FROM products ORDER BY CASE WHEN grid_position IS NULL THEN 999999 ELSE grid_position END ASC, id DESC
-SELECT filepath FROM mediafile WHERE entity_type = 'product' AND entity_id = 3.0 ORDER BY is_primary DESC LIMIT 2
-SELECT filepath FROM mediafile WHERE entity_type = 'product' AND entity_id = 2.0 ORDER BY is_primary DESC LIMIT 2
-SELECT filepath FROM mediafile WHERE entity_type = 'product' AND entity_id = 1.0 ORDER BY is_primary DESC LIMIT 2
- GET /api/products 200 in 306ms
- ✓ Compiled /api/cart in 114ms (143 modules)
-PRAGMA foreign_keys = ON
-Initializing database tables...
-CREATE TABLE IF NOT EXISTS adminauth (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      email TEXT UNIQUE NOT NULL,
-      primaryPassword TEXT NOT NULL,
-      secondaryPassword TEXT,
-      failed_attempts INTEGER DEFAULT 0,
-      locked_until TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      email TEXT UNIQUE NOT NULL,
-      password TEXT NOT NULL,
-      name TEXT NOT NULL,
-      phone TEXT,
-      role TEXT NOT NULL DEFAULT 'Customer', -- Admin, Sub-admin, Manager, Customer Care, Customer
-      permissions TEXT DEFAULT '[]', -- JSON string containing overrides/permissions list
-      gender TEXT, -- Onboarding Q1
-      how_found TEXT, -- Onboarding Q2
-      style_pref TEXT, -- Onboarding Q3
-      category_pref TEXT, -- Onboarding Q4
-      promotion_tier TEXT DEFAULT 'Standard', -- Standard, Loyal, Top User, VIP
-      is_suspended INTEGER DEFAULT 0, -- 0 = Active, 1 = Suspended
-      suspended_until TEXT, -- datetime string
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS category (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT UNIQUE NOT NULL,
-      slug TEXT UNIQUE NOT NULL
-    );
-CREATE TABLE IF NOT EXISTS products (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      slug TEXT UNIQUE NOT NULL,
-      description TEXT,
-      price REAL NOT NULL,
-      stock INTEGER NOT NULL DEFAULT 0,
-      category_id INTEGER REFERENCES category(id) ON DELETE SET NULL,
-      subcategory TEXT,
-      gender_target TEXT NOT NULL DEFAULT 'unisex', -- men, women, unisex, gen-z
-      sizes TEXT DEFAULT '[]', -- JSON array of sizes: ["S", "M", "L"]
-      colors TEXT DEFAULT '[]', -- JSON array of colors: ["#000000", "#FFFFFF"]
-      quality_grade TEXT DEFAULT 'A', -- Quality / fabric grade
-      grid_position INTEGER DEFAULT NULL, -- controls manual grid placement seating
-      is_trending INTEGER DEFAULT 0, -- boolean
-      discount_percent REAL DEFAULT 0,
-      discount_active_from TEXT, -- ISO Date string
-      discount_active_to TEXT, -- ISO Date string
-      display_price_strikethrough INTEGER DEFAULT 0, -- boolean
-      min_images INTEGER DEFAULT 2,
-      max_images INTEGER DEFAULT 10,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS mediafile (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      filepath TEXT NOT NULL,
-      entity_type TEXT NOT NULL, -- 'product', 'blog', etc.
-      entity_id INTEGER NOT NULL,
-      original_filename TEXT,
-      file_size INTEGER,
-      is_primary INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS refreshtoken (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      token TEXT UNIQUE NOT NULL,
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      expires_at TEXT NOT NULL,
-      revoked INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS websitesetting (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL
-    );
-CREATE TABLE IF NOT EXISTS systemsetting (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL
-    );
-CREATE TABLE IF NOT EXISTS themepreset (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT UNIQUE NOT NULL,
-      tokens TEXT NOT NULL -- JSON string of tokens
-    );
-CREATE TABLE IF NOT EXISTS themecustomization (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      preset_id INTEGER REFERENCES themepreset(id),
-      custom_tokens TEXT NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS cart (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
-      quantity INTEGER NOT NULL,
-      size TEXT,
-      color TEXT
-    );
-CREATE TABLE IF NOT EXISTS orders (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL REFERENCES users(id),
-      total_price REAL NOT NULL,
-      discount_applied REAL DEFAULT 0,
-      coupon_code TEXT,
-      status TEXT DEFAULT 'Pending', -- Pending, Shipped, Out for Delivery, Delivered, Cancelled, Return Requested, Return Approved
-      shipping_address TEXT NOT NULL,
-      payment_ref TEXT,
-      payment_status TEXT DEFAULT 'Pending', -- Pending, Paid, Refunded
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS order_items (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
-      product_id INTEGER NOT NULL REFERENCES products(id),
-      quantity INTEGER NOT NULL,
-      price REAL NOT NULL,
-      color TEXT,
-      size TEXT
-    );
-CREATE TABLE IF NOT EXISTS coupons (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      code TEXT UNIQUE NOT NULL,
-      type TEXT NOT NULL, -- 'private', 'public_sub' (product-scoped), 'public_pro' (site-wide)
-      discount_value REAL NOT NULL, -- percentage or flat amount
-      discount_type TEXT NOT NULL DEFAULT 'percent', -- 'percent' or 'flat'
-      max_redemptions INTEGER DEFAULT 9999, -- Private usage cap
-      redeemed_count INTEGER DEFAULT 0,
-      active_from TEXT, -- date string
-      active_to TEXT, -- date string
-      product_id INTEGER, -- Optional product scoping
-      category_id INTEGER, -- Optional category scoping
-      per_account_limit INTEGER DEFAULT 1,
-      is_active INTEGER DEFAULT 1,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS coupon_redemptions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      coupon_id INTEGER NOT NULL REFERENCES coupons(id) ON DELETE CASCADE,
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      order_id INTEGER REFERENCES orders(id) ON DELETE SET NULL,
-      redeemed_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS message (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      sender_id INTEGER NOT NULL REFERENCES users(id),
-      receiver_id INTEGER REFERENCES users(id), -- Null means sent to Customer Care general inbox
-      content TEXT NOT NULL,
-      is_read INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS notification (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, -- target recipient
-      title TEXT NOT NULL,
-      message TEXT NOT NULL,
-      is_read INTEGER DEFAULT 0,
-      type TEXT, -- order_status, coupon, chat, low_stock, career
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS career_applications (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      email TEXT NOT NULL,
-      phone TEXT,
-      role_interest TEXT NOT NULL,
-      resume_link TEXT,
-      cover_letter TEXT,
-      status TEXT DEFAULT 'Pending', -- Pending, Reviewed, Approved, Rejected
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS activitylog (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
-      action TEXT NOT NULL,
-      details TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-Seeding baseline database records...
-SELECT id FROM adminauth WHERE email = 'weartome@admin.com'
-SELECT id FROM users WHERE email = 'weartome@admin.com'
-SELECT id FROM category WHERE slug = 'apparel'
-SELECT id FROM category WHERE slug = 'accessories'
-SELECT id FROM category WHERE slug = 'trending'
-SELECT id FROM category WHERE slug = 'apparel'
-SELECT id FROM category WHERE slug = 'accessories'
-SELECT id FROM products WHERE slug = 'silk-midnight-gown'
-SELECT id FROM products WHERE slug = 'golden-hour-watch'
-SELECT id FROM products WHERE slug = 'cashmere-scarf'
-SELECT key FROM websitesetting WHERE key = 'site.name'
-SELECT key FROM websitesetting WHERE key = 'site.tagline'
-SELECT key FROM websitesetting WHERE key = 'site.primary_color'
-SELECT key FROM websitesetting WHERE key = 'site.primary_font'
-SELECT key FROM websitesetting WHERE key = 'site.seo_title'
-SELECT key FROM systemsetting WHERE key = 'ai_enabled'
-SELECT key FROM systemsetting WHERE key = 'voice_enabled'
-SELECT key FROM systemsetting WHERE key = 'theme_mode'
-SELECT id FROM themepreset WHERE name = 'Gucci Luxe'
-SELECT id FROM themepreset WHERE name = 'Minimal Dark'
-SELECT id FROM themepreset WHERE name = 'Vibrant Modern'
-SELECT id FROM coupons WHERE code = 'WELCOME10'
-SELECT id FROM coupons WHERE code = 'VIP500'
-Database initialization and seeding completed successfully!
-DELETE FROM cart WHERE user_id = 3.0
- DELETE /api/cart 200 in 295ms
-SELECT stock, name FROM products WHERE id = 1.0
-SELECT id, quantity FROM cart WHERE user_id = 3.0 AND product_id = 1.0 AND size = 'L' AND color = '#1F1F1F'
-INSERT INTO cart (user_id, product_id, quantity, size, color) VALUES (3.0, 1.0, 1.0, 'L', '#1F1F1F')
- POST /api/cart 200 in 22ms
-SELECT c.id, c.product_id, c.quantity, c.size, c.color,
-              p.name, p.price, p.stock, p.slug, p.discount_percent,
-              p.discount_active_from, p.discount_active_to
-       FROM cart c
-       JOIN products p ON c.product_id = p.id
-       WHERE c.user_id = 3.0
-SELECT filepath FROM mediafile WHERE entity_type = 'product' AND entity_id = 1.0 AND is_primary = 1 LIMIT 1
- GET /api/cart 200 in 15ms
- ✓ Compiled /api/coupons/validate in 146ms (145 modules)
-PRAGMA foreign_keys = ON
-Initializing database tables...
-CREATE TABLE IF NOT EXISTS adminauth (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      email TEXT UNIQUE NOT NULL,
-      primaryPassword TEXT NOT NULL,
-      secondaryPassword TEXT,
-      failed_attempts INTEGER DEFAULT 0,
-      locked_until TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      email TEXT UNIQUE NOT NULL,
-      password TEXT NOT NULL,
-      name TEXT NOT NULL,
-      phone TEXT,
-      role TEXT NOT NULL DEFAULT 'Customer', -- Admin, Sub-admin, Manager, Customer Care, Customer
-      permissions TEXT DEFAULT '[]', -- JSON string containing overrides/permissions list
-      gender TEXT, -- Onboarding Q1
-      how_found TEXT, -- Onboarding Q2
-      style_pref TEXT, -- Onboarding Q3
-      category_pref TEXT, -- Onboarding Q4
-      promotion_tier TEXT DEFAULT 'Standard', -- Standard, Loyal, Top User, VIP
-      is_suspended INTEGER DEFAULT 0, -- 0 = Active, 1 = Suspended
-      suspended_until TEXT, -- datetime string
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS category (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT UNIQUE NOT NULL,
-      slug TEXT UNIQUE NOT NULL
-    );
-CREATE TABLE IF NOT EXISTS products (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      slug TEXT UNIQUE NOT NULL,
-      description TEXT,
-      price REAL NOT NULL,
-      stock INTEGER NOT NULL DEFAULT 0,
-      category_id INTEGER REFERENCES category(id) ON DELETE SET NULL,
-      subcategory TEXT,
-      gender_target TEXT NOT NULL DEFAULT 'unisex', -- men, women, unisex, gen-z
-      sizes TEXT DEFAULT '[]', -- JSON array of sizes: ["S", "M", "L"]
-      colors TEXT DEFAULT '[]', -- JSON array of colors: ["#000000", "#FFFFFF"]
-      quality_grade TEXT DEFAULT 'A', -- Quality / fabric grade
-      grid_position INTEGER DEFAULT NULL, -- controls manual grid placement seating
-      is_trending INTEGER DEFAULT 0, -- boolean
-      discount_percent REAL DEFAULT 0,
-      discount_active_from TEXT, -- ISO Date string
-      discount_active_to TEXT, -- ISO Date string
-      display_price_strikethrough INTEGER DEFAULT 0, -- boolean
-      min_images INTEGER DEFAULT 2,
-      max_images INTEGER DEFAULT 10,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS mediafile (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      filepath TEXT NOT NULL,
-      entity_type TEXT NOT NULL, -- 'product', 'blog', etc.
-      entity_id INTEGER NOT NULL,
-      original_filename TEXT,
-      file_size INTEGER,
-      is_primary INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS refreshtoken (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      token TEXT UNIQUE NOT NULL,
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      expires_at TEXT NOT NULL,
-      revoked INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS websitesetting (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL
-    );
-CREATE TABLE IF NOT EXISTS systemsetting (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL
-    );
-CREATE TABLE IF NOT EXISTS themepreset (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT UNIQUE NOT NULL,
-      tokens TEXT NOT NULL -- JSON string of tokens
-    );
-CREATE TABLE IF NOT EXISTS themecustomization (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      preset_id INTEGER REFERENCES themepreset(id),
-      custom_tokens TEXT NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS cart (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
-      quantity INTEGER NOT NULL,
-      size TEXT,
-      color TEXT
-    );
-CREATE TABLE IF NOT EXISTS orders (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL REFERENCES users(id),
-      total_price REAL NOT NULL,
-      discount_applied REAL DEFAULT 0,
-      coupon_code TEXT,
-      status TEXT DEFAULT 'Pending', -- Pending, Shipped, Out for Delivery, Delivered, Cancelled, Return Requested, Return Approved
-      shipping_address TEXT NOT NULL,
-      payment_ref TEXT,
-      payment_status TEXT DEFAULT 'Pending', -- Pending, Paid, Refunded
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS order_items (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
-      product_id INTEGER NOT NULL REFERENCES products(id),
-      quantity INTEGER NOT NULL,
-      price REAL NOT NULL,
-      color TEXT,
-      size TEXT
-    );
-CREATE TABLE IF NOT EXISTS coupons (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      code TEXT UNIQUE NOT NULL,
-      type TEXT NOT NULL, -- 'private', 'public_sub' (product-scoped), 'public_pro' (site-wide)
-      discount_value REAL NOT NULL, -- percentage or flat amount
-      discount_type TEXT NOT NULL DEFAULT 'percent', -- 'percent' or 'flat'
-      max_redemptions INTEGER DEFAULT 9999, -- Private usage cap
-      redeemed_count INTEGER DEFAULT 0,
-      active_from TEXT, -- date string
-      active_to TEXT, -- date string
-      product_id INTEGER, -- Optional product scoping
-      category_id INTEGER, -- Optional category scoping
-      per_account_limit INTEGER DEFAULT 1,
-      is_active INTEGER DEFAULT 1,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS coupon_redemptions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      coupon_id INTEGER NOT NULL REFERENCES coupons(id) ON DELETE CASCADE,
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      order_id INTEGER REFERENCES orders(id) ON DELETE SET NULL,
-      redeemed_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS message (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      sender_id INTEGER NOT NULL REFERENCES users(id),
-      receiver_id INTEGER REFERENCES users(id), -- Null means sent to Customer Care general inbox
-      content TEXT NOT NULL,
-      is_read INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS notification (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, -- target recipient
-      title TEXT NOT NULL,
-      message TEXT NOT NULL,
-      is_read INTEGER DEFAULT 0,
-      type TEXT, -- order_status, coupon, chat, low_stock, career
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS career_applications (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      email TEXT NOT NULL,
-      phone TEXT,
-      role_interest TEXT NOT NULL,
-      resume_link TEXT,
-      cover_letter TEXT,
-      status TEXT DEFAULT 'Pending', -- Pending, Reviewed, Approved, Rejected
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-CREATE TABLE IF NOT EXISTS activitylog (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
-      action TEXT NOT NULL,
-      details TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-Seeding baseline database records...
-SELECT id FROM adminauth WHERE email = 'weartome@admin.com'
-SELECT id FROM users WHERE email = 'weartome@admin.com'
-SELECT id FROM category WHERE slug = 'apparel'
-SELECT id FROM category WHERE slug = 'accessories'
-SELECT id FROM category WHERE slug = 'trending'
-SELECT id FROM category WHERE slug = 'apparel'
-SELECT id FROM category WHERE slug = 'accessories'
-SELECT id FROM products WHERE slug = 'silk-midnight-gown'
-SELECT id FROM products WHERE slug = 'golden-hour-watch'
-SELECT id FROM products WHERE slug = 'cashmere-scarf'
-SELECT key FROM websitesetting WHERE key = 'site.name'
-SELECT key FROM websitesetting WHERE key = 'site.tagline'
-SELECT key FROM websitesetting WHERE key = 'site.primary_color'
-SELECT key FROM websitesetting WHERE key = 'site.primary_font'
-SELECT key FROM websitesetting WHERE key = 'site.seo_title'
-SELECT key FROM systemsetting WHERE key = 'ai_enabled'
-SELECT key FROM systemsetting WHERE key = 'voice_enabled'
-SELECT key FROM systemsetting WHERE key = 'theme_mode'
-SELECT id FROM themepreset WHERE name = 'Gucci Luxe'
-SELECT id FROM themepreset WHERE name = 'Minimal Dark'
-SELECT id FROM themepreset WHERE name = 'Vibrant Modern'
-SELECT id FROM coupons WHERE code = 'WELCOME10'
-SELECT id FROM coupons WHERE code = 'VIP500'
-Database initialization and seeding completed successfully!
-SELECT * FROM coupons WHERE code = 'WELCOME10'
-SELECT COUNT(*) as count FROM coupon_redemptions WHERE coupon_id = 1.0 AND user_id = 3.0
- POST /api/coupons/validate 400 in 343ms
-SELECT * FROM adminauth WHERE email = 'testcustomer@weartome.com'
-SELECT * FROM users WHERE email = 'testcustomer@weartome.com'
-INSERT INTO activitylog (user_id, action, details) VALUES (3.0, 'User Login', 'Successful login with role: Cust'/*+4 bytes*/)
- POST /api/auth/login 200 in 156ms
-SELECT * FROM products ORDER BY CASE WHEN grid_position IS NULL THEN 999999 ELSE grid_position END ASC, id DESC
-SELECT filepath FROM mediafile WHERE entity_type = 'product' AND entity_id = 3.0 ORDER BY is_primary DESC LIMIT 2
-SELECT filepath FROM mediafile WHERE entity_type = 'product' AND entity_id = 2.0 ORDER BY is_primary DESC LIMIT 2
-SELECT filepath FROM mediafile WHERE entity_type = 'product' AND entity_id = 1.0 ORDER BY is_primary DESC LIMIT 2
- GET /api/products 200 in 13ms
-DELETE FROM cart WHERE user_id = 3.0
- DELETE /api/cart 200 in 14ms
-SELECT stock, name FROM products WHERE id = 1.0
-SELECT id, quantity FROM cart WHERE user_id = 3.0 AND product_id = 1.0 AND size = 'L' AND color = '#1F1F1F'
-INSERT INTO cart (user_id, product_id, quantity, size, color) VALUES (3.0, 1.0, 1.0, 'L', '#1F1F1F')
- POST /api/cart 200 in 17ms
-SELECT c.id, c.product_id, c.quantity, c.size, c.color,
-              p.name, p.price, p.stock, p.slug, p.discount_percent,
-              p.discount_active_from, p.discount_active_to
-       FROM cart c
-       JOIN products p ON c.product_id = p.id
-       WHERE c.user_id = 3.0
-SELECT filepath FROM mediafile WHERE entity_type = 'product' AND entity_id = 1.0 AND is_primary = 1 LIMIT 1
- GET /api/cart 200 in 15ms
-SELECT * FROM coupons WHERE code = 'WELCOME10'
-SELECT COUNT(*) as count FROM coupon_redemptions WHERE coupon_id = 1.0 AND user_id = 3.0
-SELECT c.product_id, c.quantity, p.price, p.category_id
-         FROM cart c
-         JOIN products p ON c.product_id = p.id
-         WHERE c.user_id = 3.0
- POST /api/coupons/validate 200 in 15ms
+ ✓ Ready in 2.4s
  ○ Compiling / ...
- ✓ Compiled / in 8.8s (1418 modules)
- GET / 200 in 9706ms
- ✓ Compiled in 922ms (697 modules)
- ✓ Compiled in 534ms (697 modules)
- ✓ Compiled in 455ms (697 modules)
- ✓ Compiled in 252ms (697 modules)
- ✓ Compiled in 193ms (697 modules)
- ✓ Compiled in 182ms (697 modules)
+ ✓ Compiled / in 7.4s (1418 modules)
+ HEAD / 200 in 7917ms
+ ✓ Compiled in 786ms (697 modules)
+ ○ Compiling /login ...
+ ✓ Compiled /login in 1234ms (1398 modules)
+ GET /login 200 in 1517ms
+ ○ Compiling /api/auth/login ...
+ ✓ Compiled /api/auth/login in 762ms (822 modules)
+PRAGMA foreign_keys = ON
+Initializing database tables...
+CREATE TABLE IF NOT EXISTS adminauth (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      email TEXT UNIQUE NOT NULL,
+      primaryPassword TEXT NOT NULL,
+      secondaryPassword TEXT,
+      failed_attempts INTEGER DEFAULT 0,
+      locked_until TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      email TEXT UNIQUE NOT NULL,
+      password TEXT NOT NULL,
+      name TEXT NOT NULL,
+      phone TEXT,
+      role TEXT NOT NULL DEFAULT 'Customer', -- Admin, Sub-admin, Manager, Customer Care, Customer
+      permissions TEXT DEFAULT '[]', -- JSON string containing overrides/permissions list
+      gender TEXT, -- Onboarding Q1
+      how_found TEXT, -- Onboarding Q2
+      style_pref TEXT, -- Onboarding Q3
+      category_pref TEXT, -- Onboarding Q4
+      promotion_tier TEXT DEFAULT 'Standard', -- Standard, Loyal, Top User, VIP
+      is_suspended INTEGER DEFAULT 0, -- 0 = Active, 1 = Suspended
+      suspended_until TEXT, -- datetime string
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+CREATE TABLE IF NOT EXISTS category (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT UNIQUE NOT NULL,
+      slug TEXT UNIQUE NOT NULL
+    );
+CREATE TABLE IF NOT EXISTS products (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      slug TEXT UNIQUE NOT NULL,
+      description TEXT,
+      price REAL NOT NULL,
+      stock INTEGER NOT NULL DEFAULT 0,
+      category_id INTEGER REFERENCES category(id) ON DELETE SET NULL,
+      subcategory TEXT,
+      gender_target TEXT NOT NULL DEFAULT 'unisex', -- men, women, unisex, gen-z
+      sizes TEXT DEFAULT '[]', -- JSON array of sizes: ["S", "M", "L"]
+      colors TEXT DEFAULT '[]', -- JSON array of colors: ["#000000", "#FFFFFF"]
+      quality_grade TEXT DEFAULT 'A', -- Quality / fabric grade
+      grid_position INTEGER DEFAULT NULL, -- controls manual grid placement seating
+      is_trending INTEGER DEFAULT 0, -- boolean
+      discount_percent REAL DEFAULT 0,
+      discount_active_from TEXT, -- ISO Date string
+      discount_active_to TEXT, -- ISO Date string
+      display_price_strikethrough INTEGER DEFAULT 0, -- boolean
+      min_images INTEGER DEFAULT 2,
+      max_images INTEGER DEFAULT 10,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+CREATE TABLE IF NOT EXISTS mediafile (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      filepath TEXT NOT NULL,
+      entity_type TEXT NOT NULL, -- 'product', 'blog', etc.
+      entity_id INTEGER NOT NULL,
+      original_filename TEXT,
+      file_size INTEGER,
+      is_primary INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+CREATE TABLE IF NOT EXISTS refreshtoken (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      token TEXT UNIQUE NOT NULL,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      expires_at TEXT NOT NULL,
+      revoked INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+CREATE TABLE IF NOT EXISTS websitesetting (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    );
+CREATE TABLE IF NOT EXISTS systemsetting (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    );
+CREATE TABLE IF NOT EXISTS themepreset (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT UNIQUE NOT NULL,
+      tokens TEXT NOT NULL -- JSON string of tokens
+    );
+CREATE TABLE IF NOT EXISTS themecustomization (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      preset_id INTEGER REFERENCES themepreset(id),
+      custom_tokens TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+CREATE TABLE IF NOT EXISTS cart (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+      quantity INTEGER NOT NULL,
+      size TEXT,
+      color TEXT
+    );
+CREATE TABLE IF NOT EXISTS orders (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id),
+      total_price REAL NOT NULL,
+      discount_applied REAL DEFAULT 0,
+      coupon_code TEXT,
+      status TEXT DEFAULT 'Pending', -- Pending, Shipped, Out for Delivery, Delivered, Cancelled, Return Requested, Return Approved
+      shipping_address TEXT NOT NULL,
+      payment_ref TEXT,
+      payment_status TEXT DEFAULT 'Pending', -- Pending, Paid, Refunded
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+CREATE TABLE IF NOT EXISTS order_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+      product_id INTEGER NOT NULL REFERENCES products(id),
+      quantity INTEGER NOT NULL,
+      price REAL NOT NULL,
+      color TEXT,
+      size TEXT
+    );
+CREATE TABLE IF NOT EXISTS coupons (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      code TEXT UNIQUE NOT NULL,
+      type TEXT NOT NULL, -- 'private', 'public_sub' (product-scoped), 'public_pro' (site-wide)
+      discount_value REAL NOT NULL, -- percentage or flat amount
+      discount_type TEXT NOT NULL DEFAULT 'percent', -- 'percent' or 'flat'
+      max_redemptions INTEGER DEFAULT 9999, -- Private usage cap
+      redeemed_count INTEGER DEFAULT 0,
+      active_from TEXT, -- date string
+      active_to TEXT, -- date string
+      product_id INTEGER, -- Optional product scoping
+      category_id INTEGER, -- Optional category scoping
+      per_account_limit INTEGER DEFAULT 1,
+      is_active INTEGER DEFAULT 1,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+CREATE TABLE IF NOT EXISTS coupon_redemptions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      coupon_id INTEGER NOT NULL REFERENCES coupons(id) ON DELETE CASCADE,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      order_id INTEGER REFERENCES orders(id) ON DELETE SET NULL,
+      redeemed_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+CREATE TABLE IF NOT EXISTS message (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      sender_id INTEGER NOT NULL REFERENCES users(id),
+      receiver_id INTEGER REFERENCES users(id), -- Null means sent to Customer Care general inbox
+      content TEXT NOT NULL,
+      is_read INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+CREATE TABLE IF NOT EXISTS notification (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, -- target recipient
+      title TEXT NOT NULL,
+      message TEXT NOT NULL,
+      is_read INTEGER DEFAULT 0,
+      type TEXT, -- order_status, coupon, chat, low_stock, career
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+CREATE TABLE IF NOT EXISTS career_applications (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      email TEXT NOT NULL,
+      phone TEXT,
+      role_interest TEXT NOT NULL,
+      resume_link TEXT,
+      cover_letter TEXT,
+      status TEXT DEFAULT 'Pending', -- Pending, Reviewed, Approved, Rejected
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+CREATE TABLE IF NOT EXISTS activitylog (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      action TEXT NOT NULL,
+      details TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+CREATE TABLE IF NOT EXISTS blogs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      slug TEXT UNIQUE NOT NULL,
+      content TEXT NOT NULL,
+      author_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      category TEXT NOT NULL,
+      is_published INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+Seeding baseline database records...
+SELECT id FROM adminauth WHERE email = 'weartome@admin.com'
+SELECT id FROM users WHERE email = 'weartome@admin.com'
+SELECT id FROM category WHERE slug = 'apparel'
+SELECT id FROM category WHERE slug = 'accessories'
+SELECT id FROM category WHERE slug = 'trending'
+SELECT id FROM category WHERE slug = 'apparel'
+SELECT id FROM category WHERE slug = 'accessories'
+SELECT id FROM products WHERE slug = 'silk-midnight-gown'
+SELECT id FROM products WHERE slug = 'golden-hour-watch'
+SELECT id FROM products WHERE slug = 'cashmere-scarf'
+SELECT key FROM websitesetting WHERE key = 'site.name'
+SELECT key FROM websitesetting WHERE key = 'site.tagline'
+SELECT key FROM websitesetting WHERE key = 'site.primary_color'
+SELECT key FROM websitesetting WHERE key = 'site.primary_font'
+SELECT key FROM websitesetting WHERE key = 'site.seo_title'
+SELECT key FROM systemsetting WHERE key = 'ai_enabled'
+SELECT key FROM systemsetting WHERE key = 'voice_enabled'
+SELECT key FROM systemsetting WHERE key = 'theme_mode'
+SELECT id FROM themepreset WHERE name = 'Gucci Luxe'
+SELECT id FROM themepreset WHERE name = 'Minimal Dark'
+SELECT id FROM themepreset WHERE name = 'Vibrant Modern'
+SELECT id FROM coupons WHERE code = 'WELCOME10'
+SELECT id FROM coupons WHERE code = 'VIP500'
+Database initialization and seeding completed successfully!
+SELECT * FROM adminauth WHERE email = 'weartome@admin.com'
+SELECT * FROM users WHERE email = 'weartome@admin.com'
+INSERT INTO activitylog (user_id, action, details) VALUES (1.0, 'User Login', 'Successful login with role: Admi'/*+1 bytes*/)
+ POST /api/auth/login 200 in 1185ms
+ ○ Compiling /admin ...
+ ✓ Compiled /admin in 742ms (1116 modules)
+ ✓ Compiled /api/auth/session in 120ms (417 modules)
+PRAGMA foreign_keys = ON
+Initializing database tables...
+CREATE TABLE IF NOT EXISTS adminauth (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      email TEXT UNIQUE NOT NULL,
+      primaryPassword TEXT NOT NULL,
+      secondaryPassword TEXT,
+      failed_attempts INTEGER DEFAULT 0,
+      locked_until TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      email TEXT UNIQUE NOT NULL,
+      password TEXT NOT NULL,
+      name TEXT NOT NULL,
+      phone TEXT,
+      role TEXT NOT NULL DEFAULT 'Customer', -- Admin, Sub-admin, Manager, Customer Care, Customer
+      permissions TEXT DEFAULT '[]', -- JSON string containing overrides/permissions list
+      gender TEXT, -- Onboarding Q1
+      how_found TEXT, -- Onboarding Q2
+      style_pref TEXT, -- Onboarding Q3
+      category_pref TEXT, -- Onboarding Q4
+      promotion_tier TEXT DEFAULT 'Standard', -- Standard, Loyal, Top User, VIP
+      is_suspended INTEGER DEFAULT 0, -- 0 = Active, 1 = Suspended
+      suspended_until TEXT, -- datetime string
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+CREATE TABLE IF NOT EXISTS category (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT UNIQUE NOT NULL,
+      slug TEXT UNIQUE NOT NULL
+    );
+CREATE TABLE IF NOT EXISTS products (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      slug TEXT UNIQUE NOT NULL,
+      description TEXT,
+      price REAL NOT NULL,
+      stock INTEGER NOT NULL DEFAULT 0,
+      category_id INTEGER REFERENCES category(id) ON DELETE SET NULL,
+      subcategory TEXT,
+      gender_target TEXT NOT NULL DEFAULT 'unisex', -- men, women, unisex, gen-z
+      sizes TEXT DEFAULT '[]', -- JSON array of sizes: ["S", "M", "L"]
+      colors TEXT DEFAULT '[]', -- JSON array of colors: ["#000000", "#FFFFFF"]
+      quality_grade TEXT DEFAULT 'A', -- Quality / fabric grade
+      grid_position INTEGER DEFAULT NULL, -- controls manual grid placement seating
+      is_trending INTEGER DEFAULT 0, -- boolean
+      discount_percent REAL DEFAULT 0,
+      discount_active_from TEXT, -- ISO Date string
+      discount_active_to TEXT, -- ISO Date string
+      display_price_strikethrough INTEGER DEFAULT 0, -- boolean
+      min_images INTEGER DEFAULT 2,
+      max_images INTEGER DEFAULT 10,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+CREATE TABLE IF NOT EXISTS mediafile (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      filepath TEXT NOT NULL,
+      entity_type TEXT NOT NULL, -- 'product', 'blog', etc.
+      entity_id INTEGER NOT NULL,
+      original_filename TEXT,
+      file_size INTEGER,
+      is_primary INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+CREATE TABLE IF NOT EXISTS refreshtoken (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      token TEXT UNIQUE NOT NULL,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      expires_at TEXT NOT NULL,
+      revoked INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+CREATE TABLE IF NOT EXISTS websitesetting (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    );
+CREATE TABLE IF NOT EXISTS systemsetting (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    );
+CREATE TABLE IF NOT EXISTS themepreset (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT UNIQUE NOT NULL,
+      tokens TEXT NOT NULL -- JSON string of tokens
+    );
+CREATE TABLE IF NOT EXISTS themecustomization (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      preset_id INTEGER REFERENCES themepreset(id),
+      custom_tokens TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+CREATE TABLE IF NOT EXISTS cart (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+      quantity INTEGER NOT NULL,
+      size TEXT,
+      color TEXT
+    );
+CREATE TABLE IF NOT EXISTS orders (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id),
+      total_price REAL NOT NULL,
+      discount_applied REAL DEFAULT 0,
+      coupon_code TEXT,
+      status TEXT DEFAULT 'Pending', -- Pending, Shipped, Out for Delivery, Delivered, Cancelled, Return Requested, Return Approved
+      shipping_address TEXT NOT NULL,
+      payment_ref TEXT,
+      payment_status TEXT DEFAULT 'Pending', -- Pending, Paid, Refunded
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+CREATE TABLE IF NOT EXISTS order_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+      product_id INTEGER NOT NULL REFERENCES products(id),
+      quantity INTEGER NOT NULL,
+      price REAL NOT NULL,
+      color TEXT,
+      size TEXT
+    );
+CREATE TABLE IF NOT EXISTS coupons (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      code TEXT UNIQUE NOT NULL,
+      type TEXT NOT NULL, -- 'private', 'public_sub' (product-scoped), 'public_pro' (site-wide)
+      discount_value REAL NOT NULL, -- percentage or flat amount
+      discount_type TEXT NOT NULL DEFAULT 'percent', -- 'percent' or 'flat'
+      max_redemptions INTEGER DEFAULT 9999, -- Private usage cap
+      redeemed_count INTEGER DEFAULT 0,
+      active_from TEXT, -- date string
+      active_to TEXT, -- date string
+      product_id INTEGER, -- Optional product scoping
+      category_id INTEGER, -- Optional category scoping
+      per_account_limit INTEGER DEFAULT 1,
+      is_active INTEGER DEFAULT 1,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+CREATE TABLE IF NOT EXISTS coupon_redemptions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      coupon_id INTEGER NOT NULL REFERENCES coupons(id) ON DELETE CASCADE,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      order_id INTEGER REFERENCES orders(id) ON DELETE SET NULL,
+      redeemed_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+CREATE TABLE IF NOT EXISTS message (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      sender_id INTEGER NOT NULL REFERENCES users(id),
+      receiver_id INTEGER REFERENCES users(id), -- Null means sent to Customer Care general inbox
+      content TEXT NOT NULL,
+      is_read INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+CREATE TABLE IF NOT EXISTS notification (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, -- target recipient
+      title TEXT NOT NULL,
+      message TEXT NOT NULL,
+      is_read INTEGER DEFAULT 0,
+      type TEXT, -- order_status, coupon, chat, low_stock, career
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+CREATE TABLE IF NOT EXISTS career_applications (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      email TEXT NOT NULL,
+      phone TEXT,
+      role_interest TEXT NOT NULL,
+      resume_link TEXT,
+      cover_letter TEXT,
+      status TEXT DEFAULT 'Pending', -- Pending, Reviewed, Approved, Rejected
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+CREATE TABLE IF NOT EXISTS activitylog (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      action TEXT NOT NULL,
+      details TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+CREATE TABLE IF NOT EXISTS blogs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      slug TEXT UNIQUE NOT NULL,
+      content TEXT NOT NULL,
+      author_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      category TEXT NOT NULL,
+      is_published INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+Seeding baseline database records...
+SELECT id FROM adminauth WHERE email = 'weartome@admin.com'
+SELECT id FROM users WHERE email = 'weartome@admin.com'
+SELECT id FROM category WHERE slug = 'apparel'
+SELECT id FROM category WHERE slug = 'accessories'
+SELECT id FROM category WHERE slug = 'trending'
+SELECT id FROM category WHERE slug = 'apparel'
+SELECT id FROM category WHERE slug = 'accessories'
+SELECT id FROM products WHERE slug = 'silk-midnight-gown'
+SELECT id FROM products WHERE slug = 'golden-hour-watch'
+SELECT id FROM products WHERE slug = 'cashmere-scarf'
+SELECT key FROM websitesetting WHERE key = 'site.name'
+SELECT key FROM websitesetting WHERE key = 'site.tagline'
+SELECT key FROM websitesetting WHERE key = 'site.primary_color'
+SELECT key FROM websitesetting WHERE key = 'site.primary_font'
+SELECT key FROM websitesetting WHERE key = 'site.seo_title'
+SELECT key FROM systemsetting WHERE key = 'ai_enabled'
+SELECT key FROM systemsetting WHERE key = 'voice_enabled'
+SELECT key FROM systemsetting WHERE key = 'theme_mode'
+SELECT id FROM themepreset WHERE name = 'Gucci Luxe'
+SELECT id FROM themepreset WHERE name = 'Minimal Dark'
+SELECT id FROM themepreset WHERE name = 'Vibrant Modern'
+SELECT id FROM coupons WHERE code = 'WELCOME10'
+SELECT id FROM coupons WHERE code = 'VIP500'
+Database initialization and seeding completed successfully!
+SELECT * FROM users WHERE id = 1.0
+SELECT COUNT(*) as count FROM notification WHERE user_id = 1.0 AND is_read = 0
+ GET /api/auth/session 200 in 328ms
+SELECT * FROM users WHERE id = 1.0
+SELECT COUNT(*) as count FROM notification WHERE user_id = 1.0 AND is_read = 0
+ GET /api/auth/session 200 in 27ms
+ ✓ Compiled /api/chat in 136ms (419 modules)
+ ✓ Compiled (427 modules)
+PRAGMA foreign_keys = ON
+Initializing database tables...
+CREATE TABLE IF NOT EXISTS adminauth (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      email TEXT UNIQUE NOT NULL,
+      primaryPassword TEXT NOT NULL,
+      secondaryPassword TEXT,
+      failed_attempts INTEGER DEFAULT 0,
+      locked_until TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      email TEXT UNIQUE NOT NULL,
+      password TEXT NOT NULL,
+      name TEXT NOT NULL,
+      phone TEXT,
+      role TEXT NOT NULL DEFAULT 'Customer', -- Admin, Sub-admin, Manager, Customer Care, Customer
+      permissions TEXT DEFAULT '[]', -- JSON string containing overrides/permissions list
+      gender TEXT, -- Onboarding Q1
+      how_found TEXT, -- Onboarding Q2
+      style_pref TEXT, -- Onboarding Q3
+      category_pref TEXT, -- Onboarding Q4
+      promotion_tier TEXT DEFAULT 'Standard', -- Standard, Loyal, Top User, VIP
+      is_suspended INTEGER DEFAULT 0, -- 0 = Active, 1 = Suspended
+      suspended_until TEXT, -- datetime string
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+CREATE TABLE IF NOT EXISTS category (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT UNIQUE NOT NULL,
+      slug TEXT UNIQUE NOT NULL
+    );
+CREATE TABLE IF NOT EXISTS products (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      slug TEXT UNIQUE NOT NULL,
+      description TEXT,
+      price REAL NOT NULL,
+      stock INTEGER NOT NULL DEFAULT 0,
+      category_id INTEGER REFERENCES category(id) ON DELETE SET NULL,
+      subcategory TEXT,
+      gender_target TEXT NOT NULL DEFAULT 'unisex', -- men, women, unisex, gen-z
+      sizes TEXT DEFAULT '[]', -- JSON array of sizes: ["S", "M", "L"]
+      colors TEXT DEFAULT '[]', -- JSON array of colors: ["#000000", "#FFFFFF"]
+      quality_grade TEXT DEFAULT 'A', -- Quality / fabric grade
+      grid_position INTEGER DEFAULT NULL, -- controls manual grid placement seating
+      is_trending INTEGER DEFAULT 0, -- boolean
+      discount_percent REAL DEFAULT 0,
+      discount_active_from TEXT, -- ISO Date string
+      discount_active_to TEXT, -- ISO Date string
+      display_price_strikethrough INTEGER DEFAULT 0, -- boolean
+      min_images INTEGER DEFAULT 2,
+      max_images INTEGER DEFAULT 10,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+CREATE TABLE IF NOT EXISTS mediafile (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      filepath TEXT NOT NULL,
+      entity_type TEXT NOT NULL, -- 'product', 'blog', etc.
+      entity_id INTEGER NOT NULL,
+      original_filename TEXT,
+      file_size INTEGER,
+      is_primary INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+CREATE TABLE IF NOT EXISTS refreshtoken (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      token TEXT UNIQUE NOT NULL,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      expires_at TEXT NOT NULL,
+      revoked INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+CREATE TABLE IF NOT EXISTS websitesetting (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    );
+CREATE TABLE IF NOT EXISTS systemsetting (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    );
+CREATE TABLE IF NOT EXISTS themepreset (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT UNIQUE NOT NULL,
+      tokens TEXT NOT NULL -- JSON string of tokens
+    );
+CREATE TABLE IF NOT EXISTS themecustomization (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      preset_id INTEGER REFERENCES themepreset(id),
+      custom_tokens TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+CREATE TABLE IF NOT EXISTS cart (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+      quantity INTEGER NOT NULL,
+      size TEXT,
+      color TEXT
+    );
+CREATE TABLE IF NOT EXISTS orders (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id),
+      total_price REAL NOT NULL,
+      discount_applied REAL DEFAULT 0,
+      coupon_code TEXT,
+      status TEXT DEFAULT 'Pending', -- Pending, Shipped, Out for Delivery, Delivered, Cancelled, Return Requested, Return Approved
+      shipping_address TEXT NOT NULL,
+      payment_ref TEXT,
+      payment_status TEXT DEFAULT 'Pending', -- Pending, Paid, Refunded
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+CREATE TABLE IF NOT EXISTS order_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+      product_id INTEGER NOT NULL REFERENCES products(id),
+      quantity INTEGER NOT NULL,
+      price REAL NOT NULL,
+      color TEXT,
+      size TEXT
+    );
+CREATE TABLE IF NOT EXISTS coupons (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      code TEXT UNIQUE NOT NULL,
+      type TEXT NOT NULL, -- 'private', 'public_sub' (product-scoped), 'public_pro' (site-wide)
+      discount_value REAL NOT NULL, -- percentage or flat amount
+      discount_type TEXT NOT NULL DEFAULT 'percent', -- 'percent' or 'flat'
+      max_redemptions INTEGER DEFAULT 9999, -- Private usage cap
+      redeemed_count INTEGER DEFAULT 0,
+      active_from TEXT, -- date string
+      active_to TEXT, -- date string
+      product_id INTEGER, -- Optional product scoping
+      category_id INTEGER, -- Optional category scoping
+      per_account_limit INTEGER DEFAULT 1,
+      is_active INTEGER DEFAULT 1,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+CREATE TABLE IF NOT EXISTS coupon_redemptions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      coupon_id INTEGER NOT NULL REFERENCES coupons(id) ON DELETE CASCADE,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      order_id INTEGER REFERENCES orders(id) ON DELETE SET NULL,
+      redeemed_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+CREATE TABLE IF NOT EXISTS message (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      sender_id INTEGER NOT NULL REFERENCES users(id),
+      receiver_id INTEGER REFERENCES users(id), -- Null means sent to Customer Care general inbox
+      content TEXT NOT NULL,
+      is_read INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+CREATE TABLE IF NOT EXISTS notification (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, -- target recipient
+      title TEXT NOT NULL,
+      message TEXT NOT NULL,
+      is_read INTEGER DEFAULT 0,
+      type TEXT, -- order_status, coupon, chat, low_stock, career
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+CREATE TABLE IF NOT EXISTS career_applications (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      email TEXT NOT NULL,
+      phone TEXT,
+      role_interest TEXT NOT NULL,
+      resume_link TEXT,
+      cover_letter TEXT,
+      status TEXT DEFAULT 'Pending', -- Pending, Reviewed, Approved, Rejected
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+CREATE TABLE IF NOT EXISTS activitylog (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      action TEXT NOT NULL,
+      details TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+CREATE TABLE IF NOT EXISTS blogs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      slug TEXT UNIQUE NOT NULL,
+      content TEXT NOT NULL,
+      author_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      category TEXT NOT NULL,
+      is_published INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+Seeding baseline database records...
+SELECT id FROM adminauth WHERE email = 'weartome@admin.com'
+SELECT id FROM users WHERE email = 'weartome@admin.com'
+SELECT id FROM category WHERE slug = 'apparel'
+SELECT id FROM category WHERE slug = 'accessories'
+SELECT id FROM category WHERE slug = 'trending'
+SELECT id FROM category WHERE slug = 'apparel'
+SELECT id FROM category WHERE slug = 'accessories'
+SELECT id FROM products WHERE slug = 'silk-midnight-gown'
+SELECT id FROM products WHERE slug = 'golden-hour-watch'
+SELECT id FROM products WHERE slug = 'cashmere-scarf'
+SELECT key FROM websitesetting WHERE key = 'site.name'
+SELECT key FROM websitesetting WHERE key = 'site.tagline'
+SELECT key FROM websitesetting WHERE key = 'site.primary_color'
+SELECT key FROM websitesetting WHERE key = 'site.primary_font'
+SELECT key FROM websitesetting WHERE key = 'site.seo_title'
+SELECT key FROM systemsetting WHERE key = 'ai_enabled'
+SELECT key FROM systemsetting WHERE key = 'voice_enabled'
+SELECT key FROM systemsetting WHERE key = 'theme_mode'
+SELECT id FROM themepreset WHERE name = 'Gucci Luxe'
+SELECT id FROM themepreset WHERE name = 'Minimal Dark'
+SELECT id FROM themepreset WHERE name = 'Vibrant Modern'
+SELECT id FROM coupons WHERE code = 'WELCOME10'
+SELECT id FROM coupons WHERE code = 'VIP500'
+Database initialization and seeding completed successfully!
+SELECT * FROM products ORDER BY CASE WHEN grid_position IS NULL THEN 999999 ELSE grid_position END ASC, id DESC
+SELECT filepath FROM mediafile WHERE entity_type = 'product' AND entity_id = 3.0 ORDER BY is_primary DESC LIMIT 2
+SELECT filepath FROM mediafile WHERE entity_type = 'product' AND entity_id = 2.0 ORDER BY is_primary DESC LIMIT 2
+SELECT filepath FROM mediafile WHERE entity_type = 'product' AND entity_id = 1.0 ORDER BY is_primary DESC LIMIT 2
+ GET /api/products 200 in 556ms
+SELECT o.*, u.name as customer_name, u.email as customer_email
+                       FROM orders o
+                       JOIN users u ON o.user_id = u.id ORDER BY o.id DESC
+ GET /api/orders 200 in 570ms
+SELECT * FROM coupons ORDER BY id DESC
+ GET /api/coupons 200 in 577ms
+
+          SELECT DISTINCT u.id as customer_id, u.name as customer_name, u.email as customer_email,
+                 (SELECT content FROM message WHERE (sender_id = u.id OR receiver_id = u.id) ORDER BY id DESC LIMIT 1) as last_message,
+                 (SELECT created_at FROM message WHERE (sender_id = u.id OR receiver_id = u.id) ORDER BY id DESC LIMIT 1) as last_message_time,
+                 (SELECT COUNT(*) FROM message WHERE sender_id = u.id AND receiver_id IS NULL AND is_read = 0) as unread_count
+          FROM users u
+          WHERE u.role = 'Customer' AND EXISTS (
+            SELECT 1 FROM message WHERE sender_id = u.id OR receiver_id = u.id
+          )
+          ORDER BY last_message_time DESC
+
+ GET /api/chat 200 in 584ms
+SELECT id, email, name, phone, role, permissions, gender, how_found, style_pref, category_pref, promotion_tier, is_suspended, suspended_until, created_at FROM users ORDER BY id ASC
+ GET /api/users 200 in 599ms
+SELECT * FROM products ORDER BY CASE WHEN grid_position IS NULL THEN 999999 ELSE grid_position END ASC, id DESC
+SELECT filepath FROM mediafile WHERE entity_type = 'product' AND entity_id = 3.0 ORDER BY is_primary DESC LIMIT 2
+SELECT filepath FROM mediafile WHERE entity_type = 'product' AND entity_id = 2.0 ORDER BY is_primary DESC LIMIT 2
+SELECT filepath FROM mediafile WHERE entity_type = 'product' AND entity_id = 1.0 ORDER BY is_primary DESC LIMIT 2
+ GET /api/products 200 in 30ms
+SELECT o.*, u.name as customer_name, u.email as customer_email
+                       FROM orders o
+                       JOIN users u ON o.user_id = u.id ORDER BY o.id DESC
+ GET /api/orders 200 in 39ms
+SELECT * FROM coupons ORDER BY id DESC
+ GET /api/coupons 200 in 41ms
+
+          SELECT DISTINCT u.id as customer_id, u.name as customer_name, u.email as customer_email,
+                 (SELECT content FROM message WHERE (sender_id = u.id OR receiver_id = u.id) ORDER BY id DESC LIMIT 1) as last_message,
+                 (SELECT created_at FROM message WHERE (sender_id = u.id OR receiver_id = u.id) ORDER BY id DESC LIMIT 1) as last_message_time,
+                 (SELECT COUNT(*) FROM message WHERE sender_id = u.id AND receiver_id IS NULL AND is_read = 0) as unread_count
+          FROM users u
+          WHERE u.role = 'Customer' AND EXISTS (
+            SELECT 1 FROM message WHERE sender_id = u.id OR receiver_id = u.id
+          )
+          ORDER BY last_message_time DESC
+
+ GET /api/chat 200 in 45ms
+SELECT id, email, name, phone, role, permissions, gender, how_found, style_pref, category_pref, promotion_tier, is_suspended, suspended_until, created_at FROM users ORDER BY id ASC
+ GET /api/users 200 in 44ms
+SELECT o.*, u.name as customer_name, u.email as customer_email
+                       FROM orders o
+                       JOIN users u ON o.user_id = u.id ORDER BY o.id DESC
+ GET /api/orders 200 in 13ms
+SELECT o.*, u.name as customer_name, u.email as customer_email
+                       FROM orders o
+                       JOIN users u ON o.user_id = u.id ORDER BY o.id DESC
+ GET /api/orders 200 in 20ms
