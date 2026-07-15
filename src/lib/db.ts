@@ -290,6 +290,20 @@ export function initializeDatabase() {
     );
   `);
 
+  // 19. blogs table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS blogs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      slug TEXT UNIQUE NOT NULL,
+      content TEXT NOT NULL,
+      author_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      category TEXT NOT NULL,
+      is_published INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
   // ==================== SEED DATA POPULATION ====================
   console.log('Seeding baseline database records...');
 

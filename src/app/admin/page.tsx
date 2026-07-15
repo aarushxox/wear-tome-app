@@ -119,11 +119,13 @@ export default function AdminDashboard() {
   };
 
   const loadUsers = () => {
-    setUsers([
-      { id: 1, name: 'Super Admin', email: 'weartome@admin.com', role: 'Admin', promotion_tier: 'Standard', is_suspended: 0 },
-      { id: 2, name: 'WearTome Manager', email: 'admin@weartome.com', role: 'Admin', promotion_tier: 'Standard', is_suspended: 0 },
-      { id: 3, name: 'Jane Doe', email: 'testcustomer@weartome.com', role: 'Customer', promotion_tier: 'Standard', is_suspended: 0 },
-    ]);
+    fetch('/api/users')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.users) {
+          setUsers(data.users);
+        }
+      });
   };
 
   const loadActivities = () => {
@@ -145,10 +147,13 @@ export default function AdminDashboard() {
   };
 
   const loadCoupons = () => {
-    setCoupons([
-      { id: 1, code: 'WELCOME10', type: 'public_pro', discount_value: 10, discount_type: 'percent', max_redemptions: 1000, redeemed_count: 1, is_active: 1, active_from: '2026-01-01', active_to: '2027-12-31' },
-      { id: 2, code: 'VIP500', type: 'private', discount_value: 500, discount_type: 'flat', max_redemptions: 5, redeemed_count: 0, is_active: 1, active_from: '2026-01-01', active_to: '2027-12-31' }
-    ]);
+    fetch('/api/coupons')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.coupons) {
+          setCoupons(data.coupons);
+        }
+      });
   };
 
   const loadChatThreads = () => {
@@ -239,20 +244,30 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleCreateCoupon = (e: React.FormEvent) => {
+  const handleCreateCoupon = async (e: React.FormEvent) => {
     e.preventDefault();
-    const newCoupon = {
-      id: coupons.length + 1,
-      ...coupForm,
-      discount_value: parseFloat(coupForm.discount_value),
-      max_redemptions: parseInt(coupForm.max_redemptions),
-      per_account_limit: parseInt(coupForm.per_account_limit),
-      redeemed_count: 0,
-      is_active: 1
-    };
-    setCoupons((prev) => [...prev, newCoupon]);
-    setShowCouponForm(false);
-    confetti({ particleCount: 50, spread: 45 });
+    try {
+      const res = await fetch('/api/coupons', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...coupForm,
+          discount_value: parseFloat(coupForm.discount_value),
+          max_redemptions: parseInt(coupForm.max_redemptions),
+          per_account_limit: parseInt(coupForm.per_account_limit),
+        }),
+      });
+      if (res.ok) {
+        setShowCouponForm(false);
+        loadCoupons();
+        confetti({ particleCount: 50, spread: 45 });
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Failed to register coupon.');
+      }
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   const handleDragStart = (e: React.DragEvent, index: number) => {
@@ -297,16 +312,40 @@ export default function AdminDashboard() {
     );
   };
 
-  const handleToggleUserSuspension = (userId: number, currentSuspended: number) => {
-    setUsers((prev) =>
-      prev.map((u) => u.id === userId ? { ...u, is_suspended: currentSuspended ? 0 : 1 } : u)
-    );
+  const handleToggleUserSuspension = async (userId: number, currentSuspended: number) => {
+    try {
+      const res = await fetch('/api/users', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, is_suspended: currentSuspended ? 0 : 1 }),
+      });
+      if (res.ok) {
+        loadUsers();
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Failed to update user suspension status.');
+      }
+    } catch (err) {
+      console.error(err);
+    }
   };
 
-  const handlePromoteUserTier = (userId: number, tier: string) => {
-    setUsers((prev) =>
-      prev.map((u) => u.id === userId ? { ...u, promotion_tier: tier } : u)
-    );
+  const handlePromoteUserTier = async (userId: number, tier: string) => {
+    try {
+      const res = await fetch('/api/users', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, promotion_tier: tier }),
+      });
+      if (res.ok) {
+        loadUsers();
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Failed to update user promotion tier.');
+      }
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   const filteredOrders = orders.filter((o) => {
