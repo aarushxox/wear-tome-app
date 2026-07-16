@@ -118,23 +118,33 @@ function DashboardContent() {
     e.preventDefault();
     setProfileMessage(null);
     try {
-      // Simulate/perform profile updates on user
-      const res = await fetch('/api/onboarding', {
-        method: 'POST',
+      // Wire directly to /api/users PUT for real-time customer profile database persistence
+      const res = await fetch('/api/users', {
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          gender: customer.gender,
-          how_found: customer.how_found,
-          style_pref: editPhone, // Temporary mappings
+          name: editName,
+          phone: editPhone,
           category_pref: editAddress,
         }),
       });
 
       if (res.ok) {
-        setProfileMessage('Your profile metadata has been successfully updated.');
+        const data = await res.json();
+        if (data.user) {
+          setCustomer(data.user);
+          setEditName(data.user.name);
+          setEditPhone(data.user.phone || '');
+          setEditAddress(data.user.category_pref || '');
+        }
+        setProfileMessage('Your profile details have been successfully updated.');
+      } else {
+        const data = await res.json();
+        setProfileMessage(data.error || 'Failed to update profile.');
       }
     } catch (err) {
       console.error(err);
+      setProfileMessage('An error occurred while updating your profile.');
     }
   };
 
