@@ -6,25 +6,18 @@ import {
   BarChart3, ShoppingBag, Users, Layers, Ticket, FileText,
   MessageSquare, Bell, Settings, Percent, Activity, Search, Eye,
   X, ShieldAlert, CheckCircle2, RotateCcw, Ban, Trash2, ArrowUpRight,
-  Plus, Minus, Save, Send, Check, GripVertical, DollarSign, UserCheck, CheckSquare,
-  Shield, AlertTriangle
+  Plus, Minus, Save, Send, Check, GripVertical
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 export default function AdminDashboard() {
   const router = useRouter();
 
-  // Active sub-module view state
-  // Modules: 'overview', 'orders', 'users', 'products', 'coupons', 'blogs', 'employees', 'careers', 'chat', 'notifications', 'settings', 'revenue'
+  // Active sub-module view state: 'overview', 'orders', 'users', 'products', 'coupons', 'chat'
   const [activeModule, setActiveModule] = useState('overview');
 
-  // Session
+  // Database metrics
   const [sessionUser, setSessionUser] = useState<any>(null);
-
-  // Sidebar expanded vs collapsed state
-  const [isSidebarExpanded, setIsSidebarExpanded] = useState(true);
-
-  // Shared / General states
   const [overviewKpis, setOverviewKpis] = useState<any>({
     totalOrders: 0,
     totalRevenue: 0,
@@ -37,6 +30,7 @@ export default function AdminDashboard() {
 
   // 1. Products CRUD & Seating State
   const [products, setProducts] = useState<any[]>([]);
+  const [editingProduct, setEditingProduct] = useState<any>(null);
   const [showProductForm, setShowProductForm] = useState(false);
   const [prodForm, setProdForm] = useState({
     name: '', price: '', stock: '', category_id: '1', subcategory: '',
@@ -53,53 +47,12 @@ export default function AdminDashboard() {
     max_redemptions: '100', active_from: '2026-01-01', active_to: '2027-12-31', per_account_limit: '1'
   });
 
-  // 3. Blogs / Publications State
-  const [blogs, setBlogs] = useState<any[]>([]);
-  const [showBlogForm, setShowBlogForm] = useState(false);
-  const [editingBlog, setEditingBlog] = useState<any>(null);
-  const [blogForm, setBlogForm] = useState({
-    title: '', content: '', category: 'Design', is_published: false
-  });
-
-  // 4. Employees / Team State
-  const [showEmployeeForm, setShowEmployeeForm] = useState(false);
-  const [empForm, setEmpForm] = useState({
-    name: '', email: '', password: '', role: 'Manager', permissions: [] as string[]
-  });
-
-  // 5. Career Applications State
-  const [careers, setCareers] = useState<any[]>([]);
-  const [selectedCareer, setSelectedCareer] = useState<any>(null);
-  const [showConvertEmployee, setShowConvertEmployee] = useState(false);
-  const [convertRole, setConvertRole] = useState('Manager');
-  const [convertPassword, setConvertPassword] = useState('tempPassword123!');
-
-  // 6. Support Chat State
+  // 3. Chat Support State
   const [chatThreads, setChatThreads] = useState<any[]>([]);
   const [activeThreadId, setActiveThreadId] = useState<number | null>(null);
   const [chatMessages, setChatMessages] = useState<any[]>([]);
   const [typedMessage, setTypedMessage] = useState('');
   const chatBottomRef = useRef<HTMLDivElement>(null);
-
-  // 7. Notifications State
-  const [adminNotifications, setAdminNotifications] = useState<any[]>([]);
-  const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
-
-  // 8. Settings State
-  const [webSettings, setWebSettings] = useState<any>({
-    'site.name': 'Wear Tome',
-    'site.tagline': 'Luxury Streetwear',
-    'site.primary_color': '#0A0A0A',
-    'site.primary_font': 'Playfair Display',
-    'site.seo_title': 'Wear Tome — High-End Luxury Streetwear Storefront'
-  });
-  const [systemSettings, setSystemSettings] = useState<any>({
-    'ai_enabled': '1',
-    'voice_enabled': '1',
-    'theme_mode': 'dark'
-  });
-  const [presets, setPresets] = useState<any[]>([]);
-  const [customization, setCustomization] = useState<any>(null);
 
   // Detailed drawers
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
@@ -107,8 +60,11 @@ export default function AdminDashboard() {
   const [searchQuery, setSearchQuery] = useState('');
   const [orderFilter, setOrderStatusFilter] = useState('All');
 
+  // Sidebar expanded vs collapsed state
+  const [isSidebarExpanded, setIsSidebarExpanded] = useState(true);
+
   useEffect(() => {
-    // Authenticate session and roles
+    // Authenticate session and roles (matrix checked)
     fetch('/api/auth/session')
       .then((res) => res.json())
       .then((data) => {
@@ -119,24 +75,16 @@ export default function AdminDashboard() {
           router.push('/');
         } else {
           setSessionUser(data.user);
-          loadAllData();
+          loadKpis();
+          loadOrders();
+          loadUsers();
+          loadActivities();
+          loadProducts();
+          loadCoupons();
+          loadChatThreads();
         }
       });
   }, []);
-
-  const loadAllData = () => {
-    loadKpis();
-    loadOrders();
-    loadUsers();
-    loadActivities();
-    loadProducts();
-    loadCoupons();
-    loadBlogs();
-    loadCareers();
-    loadChatThreads();
-    loadNotifications();
-    loadSettings();
-  };
 
   const loadKpis = () => {
     fetch('/api/orders')
@@ -208,26 +156,6 @@ export default function AdminDashboard() {
       });
   };
 
-  const loadBlogs = () => {
-    fetch('/api/blogs')
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.blogs) {
-          setBlogs(data.blogs);
-        }
-      });
-  };
-
-  const loadCareers = () => {
-    fetch('/api/careers')
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.applications) {
-          setCareers(data.applications);
-        }
-      });
-  };
-
   const loadChatThreads = () => {
     fetch('/api/chat')
       .then((res) => res.json())
@@ -238,37 +166,6 @@ export default function AdminDashboard() {
       });
   };
 
-  const loadNotifications = () => {
-    fetch('/api/notifications')
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.notifications) {
-          setAdminNotifications(data.notifications);
-          setUnreadNotificationsCount(data.unreadCount);
-        }
-      });
-  };
-
-  const loadSettings = () => {
-    fetch('/api/settings')
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.websiteSettings) {
-          setWebSettings(data.websiteSettings);
-        }
-        if (data.systemSettings) {
-          setSystemSettings(data.systemSettings);
-        }
-        if (data.presets) {
-          setPresets(data.presets);
-        }
-        if (data.customization) {
-          setCustomization(data.customization);
-        }
-      });
-  };
-
-  // Chat handlers
   const handleSelectThread = (threadId: number) => {
     setActiveThreadId(threadId);
     fetch(`/api/chat?partnerId=${threadId}`)
@@ -294,14 +191,12 @@ export default function AdminDashboard() {
       if (res.ok) {
         setTypedMessage('');
         handleSelectThread(activeThreadId);
-        loadChatThreads();
       }
     } catch (err) {
       console.error(err);
     }
   };
 
-  // Products CRUD
   const handleCreateProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -349,7 +244,6 @@ export default function AdminDashboard() {
     }
   };
 
-  // Coupons CRUD
   const handleCreateCoupon = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -376,187 +270,6 @@ export default function AdminDashboard() {
     }
   };
 
-  // Blogs CRUD
-  const handleCreateOrUpdateBlog = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const method = editingBlog ? 'PUT' : 'POST';
-      const payload = editingBlog
-        ? { id: editingBlog.id, ...blogForm }
-        : blogForm;
-
-      const res = await fetch('/api/blogs', {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      if (res.ok) {
-        setShowBlogForm(false);
-        setEditingBlog(null);
-        setBlogForm({ title: '', content: '', category: 'Design', is_published: false });
-        loadBlogs();
-        confetti({ particleCount: 50, spread: 40 });
-      } else {
-        const err = await res.json();
-        alert(err.error || 'Failed to persist blog.');
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const handleDeleteBlog = async (id: number) => {
-    if (!confirm('Permanently delete this editorial post?')) return;
-    try {
-      const res = await fetch(`/api/blogs?id=${id}`, { method: 'DELETE' });
-      if (res.ok) {
-        loadBlogs();
-      } else {
-        const err = await res.json();
-        alert(err.error);
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  // Employees CRUD
-  const handleCreateEmployee = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const res = await fetch('/api/users', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(empForm),
-      });
-
-      if (res.ok) {
-        setShowEmployeeForm(false);
-        setEmpForm({ name: '', email: '', password: '', role: 'Manager', permissions: [] });
-        loadUsers();
-        confetti({ particleCount: 50, spread: 45 });
-      } else {
-        const err = await res.json();
-        alert(err.error || 'Failed to register employee.');
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  // Careers handlers
-  const handleConvertApplicant = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedCareer) return;
-
-    try {
-      const res = await fetch('/api/careers', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: selectedCareer.id,
-          convertToEmployee: true,
-          employeeRole: convertRole,
-          employeePassword: convertPassword,
-        }),
-      });
-
-      if (res.ok) {
-        setShowConvertEmployee(false);
-        setSelectedCareer(null);
-        loadCareers();
-        loadUsers();
-        confetti({ particleCount: 80, spread: 50 });
-      } else {
-        const err = await res.json();
-        alert(err.error || 'Failed to convert applicant.');
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const handleUpdateApplicationStatus = async (id: number, status: string) => {
-    try {
-      const res = await fetch('/api/careers', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, status }),
-      });
-      if (res.ok) {
-        loadCareers();
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  // Notifications
-  const handleMarkAllNotificationsRead = async () => {
-    try {
-      const res = await fetch('/api/notifications', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ markAll: true }),
-      });
-      if (res.ok) {
-        loadNotifications();
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  // Settings PUT
-  const handleSaveSettings = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const res = await fetch('/api/settings', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          websiteSettings: webSettings,
-          systemSettings: systemSettings,
-        }),
-      });
-      if (res.ok) {
-        loadSettings();
-        confetti({ particleCount: 60, spread: 40 });
-        alert('All configuration settings saved successfully!');
-      } else {
-        const err = await res.json();
-        alert(err.error || 'Failed to update configurations.');
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const handleApplyPreset = async (preset: any) => {
-    try {
-      const res = await fetch('/api/settings', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          presetId: preset.id,
-          customTokens: preset.tokens,
-          websiteSettings: {
-            'site.primary_color': preset.tokens.accentColor || '#FFFFFF',
-            'site.primary_font': preset.tokens.fontFamily || 'Playfair Display',
-          },
-        }),
-      });
-      if (res.ok) {
-        loadSettings();
-        alert(`Successfully applied preset: "${preset.name}"`);
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  // Seating drag and drop
   const handleDragStart = (e: React.DragEvent, index: number) => {
     e.dataTransfer.setData('draggedIdx', index.toString());
   };
@@ -643,26 +356,13 @@ export default function AdminDashboard() {
     return matchesSearch && matchesFilter;
   });
 
-  const staffRoster = users.filter((u) => u.role !== 'Customer');
-  const customerList = users.filter((u) => u.role === 'Customer');
-
-  // Completed & Cancelled financial variables
-  const refundedOrders = orders.filter((o) => o.status === 'Cancelled');
-  const totalRefundedSum = refundedOrders.reduce((acc, o) => acc + o.total_price, 0);
-
   const navItems = [
     { id: 'overview', label: 'OVERVIEW', icon: BarChart3 },
     { id: 'orders', label: 'ORDERS', icon: ShoppingBag },
     { id: 'users', label: 'CUSTOMERS', icon: Users },
     { id: 'products', label: 'PRODUCTS CRUD', icon: Layers },
     { id: 'coupons', label: 'COUPON ENGINE', icon: Ticket },
-    { id: 'blogs', label: 'EDITORIALS', icon: FileText },
-    { id: 'employees', label: 'STAFF TEAM', icon: Shield },
-    { id: 'careers', label: 'APPLICANTS', icon: UserCheck },
     { id: 'chat', label: 'SUPPORT CHAT', icon: MessageSquare },
-    { id: 'notifications', label: 'NOTIFICATIONS', icon: Bell },
-    { id: 'settings', label: 'SETTINGS', icon: Settings },
-    { id: 'revenue', label: 'REVENUE REPORT', icon: DollarSign },
   ];
 
   if (!sessionUser) {
@@ -676,7 +376,7 @@ export default function AdminDashboard() {
   return (
     <div className="min-h-screen bg-[#000000] text-white flex font-sans">
 
-      {/* SIDEBAR COMPONENT */}
+      {/* SIDEBAR COMPONENT (ADAPTIVE RAIL) */}
       <aside className={`bg-[#0A0A0A] border-r border-[#2A2A2A] transition-all duration-300 flex flex-col justify-between ${isSidebarExpanded ? 'w-64' : 'w-20'}`}>
         <div>
           {/* Logo container */}
@@ -693,30 +393,22 @@ export default function AdminDashboard() {
           </div>
 
           {/* Navigation Links */}
-          <nav className="p-4 space-y-1 max-h-[80vh] overflow-y-auto scrollbar-hide">
+          <nav className="p-4 space-y-1">
             {navItems.map((item) => {
               const Icon = item.icon;
               const isSel = activeModule === item.id;
-              const isUnreadBadge = item.id === 'notifications' && unreadNotificationsCount > 0;
               return (
                 <button
                   key={item.id}
                   onClick={() => setActiveModule(item.id)}
-                  className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all ${
+                  className={`w-full flex items-center space-x-3.5 px-4 py-3.5 rounded-xl text-xs font-semibold uppercase tracking-widest transition-all ${
                     isSel
-                      ? 'bg-[#F8F6F2] text-black'
+                      ? 'bg-[#F8F6F2] text-black font-bold'
                       : 'text-[#8A8A8A] hover:text-white hover:bg-[#111111]'
                   }`}
                 >
-                  <div className="flex items-center space-x-3">
-                    <Icon className="w-3.5 h-3.5 flex-shrink-0" />
-                    <span className={isSidebarExpanded ? 'inline' : 'hidden'}>{item.label}</span>
-                  </div>
-                  {isUnreadBadge && isSidebarExpanded && (
-                    <span className="bg-red-500 text-white text-[8px] font-bold px-1.5 py-0.5 rounded-full">
-                      {unreadNotificationsCount}
-                    </span>
-                  )}
+                  <Icon className="w-4 h-4 flex-shrink-0" />
+                  <span className={isSidebarExpanded ? 'inline' : 'hidden'}>{item.label}</span>
                 </button>
               );
             })}
@@ -745,15 +437,6 @@ export default function AdminDashboard() {
           </span>
 
           <div className="flex items-center space-x-4">
-            {unreadNotificationsCount > 0 && (
-              <button
-                onClick={() => setActiveModule('notifications')}
-                className="relative p-1.5 text-[#8A8A8A] hover:text-white transition-colors"
-              >
-                <Bell className="w-4 h-4 animate-bounce" />
-                <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full" />
-              </button>
-            )}
             <span className="text-[10px] text-[#8A8A8A] uppercase font-mono bg-black border border-[#2A2A2A] px-2.5 py-1 rounded">
               ROLE: {sessionUser.role}
             </span>
@@ -772,41 +455,55 @@ export default function AdminDashboard() {
           {/* ==================== 1. OVERVIEW VIEW ==================== */}
           {activeModule === 'overview' && (
             <div className="space-y-8 animate-fade-in">
+              {/* KPI metrics row */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+
                 <div className="bg-[#0A0A0A] border border-[#2A2A2A] rounded-2xl p-6 space-y-2">
-                  <span className="text-[10px] uppercase tracking-widest text-[#8A8A8A] font-semibold block">TOTAL REVENUE</span>
+                  <span className="text-[10px] uppercase tracking-widest text-[#8A8A8A] font-semibold block">TOTAL REVENUE TODAY</span>
                   <span className="text-2xl font-bold block text-white">₹{overviewKpis.totalRevenue.toLocaleString()}</span>
                   <span className="text-[9px] text-[#8A8A8A] block uppercase font-medium">INR TRANSACTION VOLUMES</span>
                 </div>
+
                 <div className="bg-[#0A0A0A] border border-[#2A2A2A] rounded-2xl p-6 space-y-2">
                   <span className="text-[10px] uppercase tracking-widest text-[#8A8A8A] font-semibold block">ACQUIRED ORDERS</span>
                   <span className="text-2xl font-bold block text-white">{overviewKpis.totalOrders}</span>
                   <span className="text-[9px] text-[#8A8A8A] block uppercase font-medium">CUMULATIVE SUBMISSIONS</span>
                 </div>
+
                 <div className="bg-[#0A0A0A] border border-[#2A2A2A] rounded-2xl p-6 space-y-2">
                   <span className="text-[10px] uppercase tracking-widest text-[#8A8A8A] font-semibold block">ACTIVE PLATFORM USERS</span>
-                  <span className="text-2xl font-bold block text-white">{customerList.length || 34}</span>
+                  <span className="text-2xl font-bold block text-white">{overviewKpis.activeUsers}</span>
                   <span className="text-[9px] text-[#8A8A8A] block uppercase font-medium">REGISTERED DIRECTORIES</span>
                 </div>
+
                 <div className="bg-[#0A0A0A] border border-[#2A2A2A] rounded-2xl p-6 space-y-2">
                   <span className="text-[10px] uppercase tracking-widest text-[#8A8A8A] font-semibold block">PENDING SHIPMENTS</span>
                   <span className="text-2xl font-bold block text-white">{overviewKpis.pendingShipments}</span>
                   <span className="text-[9px] text-[#8A8A8A] block uppercase font-medium">ACTION REQUIRED INBOX</span>
                 </div>
+
               </div>
 
+              {/* Layout splits */}
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+
+                {/* Revenue/Orders trend indicators */}
                 <div className="lg:col-span-8 bg-[#0A0A0A] border border-[#2A2A2A] rounded-2xl p-8 space-y-6">
                   <span className="text-xs uppercase tracking-widest text-[#8A8A8A] font-semibold block">REVENUE STREAM ANALYTICS</span>
                   <div className="h-64 bg-black border border-[#2A2A2A] rounded-xl flex items-center justify-center relative">
+                    {/* Simulated vector chart */}
                     <div className="absolute inset-x-8 bottom-10 top-16 flex items-end justify-between">
                       {[15, 30, 20, 45, 60, 40, 75, 50, 90, 85].map((val, i) => (
                         <div key={i} className="w-8 bg-[#F8F6F2] rounded-t-sm transition-all duration-500 hover:opacity-80" style={{ height: `${val}%` }} />
                       ))}
                     </div>
+                    <span className="text-[10px] uppercase tracking-widest text-[#8A8A8A] bg-[#111111] px-4 py-2 border border-[#2A2A2A] rounded-full z-10">
+                      WEEKLY TRANSACTION VOLUMES RECORDED
+                    </span>
                   </div>
                 </div>
 
+                {/* Audit trail activity log feed */}
                 <div className="lg:col-span-4 bg-[#0A0A0A] border border-[#2A2A2A] rounded-2xl p-6 space-y-4">
                   <span className="text-xs uppercase tracking-widest text-[#8A8A8A] font-semibold block">RECENT AUDIT TRAIL</span>
                   <div className="space-y-4 max-h-[270px] overflow-y-auto scrollbar-hide">
@@ -819,6 +516,7 @@ export default function AdminDashboard() {
                     ))}
                   </div>
                 </div>
+
               </div>
             </div>
           )}
@@ -826,11 +524,14 @@ export default function AdminDashboard() {
           {/* ==================== 2. ORDERS MODULE VIEW ==================== */}
           {activeModule === 'orders' && (
             <div className="space-y-6 animate-fade-in relative">
+
+              {/* Controls bar */}
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#2A2A2A] pb-6">
-                <div>
+                <div className="space-y-1">
                   <h2 className="font-serif-luxury text-2xl font-bold uppercase text-white">ORDER ROWS PANEL</h2>
                   <p className="text-xs text-[#8A8A8A]">Filter, track shipping coordinates, or update order statuses.</p>
                 </div>
+
                 <div className="flex items-center space-x-3">
                   <select
                     value={orderFilter}
@@ -843,10 +544,11 @@ export default function AdminDashboard() {
                     <option value="Delivered">Delivered</option>
                     <option value="Cancelled">Cancelled</option>
                   </select>
+
                   <div className="relative">
                     <input
                       type="text"
-                      placeholder="SEARCH ORDER..."
+                      placeholder="SEARCH ORDER / REF..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       className="bg-[#0A0A0A] border border-[#2A2A2A] rounded-full pl-10 pr-5 py-2.5 text-xs text-white outline-none focus:border-white transition-all uppercase"
@@ -856,9 +558,10 @@ export default function AdminDashboard() {
                 </div>
               </div>
 
+              {/* Main table list */}
               {filteredOrders.length === 0 ? (
                 <div className="py-20 text-center text-xs text-[#8A8A8A] uppercase bg-[#0A0A0A] border border-[#2A2A2A] rounded-2xl">
-                  No orders found.
+                  No order rows match search queries or parameters.
                 </div>
               ) : (
                 <div className="bg-[#0A0A0A] border border-[#2A2A2A] rounded-2xl overflow-hidden">
@@ -909,7 +612,7 @@ export default function AdminDashboard() {
                 </div>
               )}
 
-              {/* Side Drawer details */}
+              {/* SIDE DRAWER: Detailed Order line items inspections */}
               {selectedOrder && (
                 <div className="fixed inset-y-0 right-0 z-50 w-full max-w-lg bg-[#0A0A0A] border-l border-[#2A2A2A] h-full flex flex-col justify-between shadow-2xl p-8 animate-fade-in text-white">
                   <div>
@@ -927,7 +630,7 @@ export default function AdminDashboard() {
                       </div>
 
                       <div className="space-y-3">
-                        <span className="text-[10px] uppercase tracking-widest text-[#8A8A8A] font-semibold block">ORDERED ITEMS</span>
+                        <span className="text-[10px] uppercase tracking-widest text-[#8A8A8A] font-semibold block">ORDERED APPAREL / ACCESSORIES ITEMS</span>
                         <div className="space-y-3 max-h-[220px] overflow-y-auto scrollbar-hide">
                           {selectedOrderItems.map((item) => (
                             <div key={item.id} className="flex justify-between items-center text-xs border-b border-[#2A2A2A] pb-2 last:border-0 last:pb-0">
@@ -972,17 +675,19 @@ export default function AdminDashboard() {
                       ))}
                     </div>
                   </div>
+
                 </div>
               )}
+
             </div>
           )}
 
-          {/* ==================== 3. USERS (CUSTOMERS) MODULE ==================== */}
+          {/* ==================== 3. USERS MODULE VIEW ==================== */}
           {activeModule === 'users' && (
             <div className="space-y-6 animate-fade-in">
               <div className="border-b border-[#2A2A2A] pb-6">
-                <h2 className="font-serif-luxury text-2xl font-bold uppercase text-white">CUSTOMER DIRECTORY</h2>
-                <p className="text-xs text-[#8A8A8A]">Check profiles, suspend/unban accounts, or upgrade loyal tiers.</p>
+                <h2 className="font-serif-luxury text-2xl font-bold uppercase text-white">USER DIRECTORY MANAGEMENT</h2>
+                <p className="text-xs text-[#8A8A8A]">Check accounts, soft-delete, suspend/unban, or upgrade loyal tiers.</p>
               </div>
 
               <div className="bg-[#0A0A0A] border border-[#2A2A2A] rounded-2xl overflow-hidden">
@@ -992,28 +697,34 @@ export default function AdminDashboard() {
                       <th className="p-5">USER ID</th>
                       <th className="p-5">NAME</th>
                       <th className="p-5">EMAIL</th>
-                      <th className="p-5">TIER LEVEL</th>
+                      <th className="p-5">ROLE</th>
+                      <th className="p-5">LOYALTY MEMBER TIER</th>
                       <th className="p-5">STATUS</th>
                       <th className="p-5 text-right">CONTROLS</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#2A2A2A]">
-                    {customerList.map((u) => (
+                    {users.map((u) => (
                       <tr key={u.id} className="hover:bg-[#111111]/30 transition-colors">
                         <td className="p-5 font-mono text-white">#{u.id}</td>
                         <td className="p-5 font-semibold text-white uppercase">{u.name}</td>
                         <td className="p-5 font-mono">{u.email}</td>
+                        <td className="p-5 uppercase font-bold text-white">{u.role}</td>
                         <td className="p-5">
-                          <select
-                            value={u.promotion_tier}
-                            onChange={(e) => handlePromoteUserTier(u.id, e.target.value)}
-                            className="bg-black border border-[#2A2A2A] rounded px-3 py-1 outline-none text-white text-[10px] font-bold uppercase"
-                          >
-                            <option value="Standard">Standard</option>
-                            <option value="Loyal">Loyal</option>
-                            <option value="Top User">Top User</option>
-                            <option value="VIP">VIP</option>
-                          </select>
+                          {u.role === 'Customer' ? (
+                            <select
+                              value={u.promotion_tier}
+                              onChange={(e) => handlePromoteUserTier(u.id, e.target.value)}
+                              className="bg-black border border-[#2A2A2A] rounded px-3 py-1 outline-none text-white text-[10px] font-bold uppercase"
+                            >
+                              <option value="Standard">Standard</option>
+                              <option value="Loyal">Loyal</option>
+                              <option value="Top User">Top User</option>
+                              <option value="VIP">VIP</option>
+                            </select>
+                          ) : (
+                            <span className="text-[10px] text-[#8A8A8A]">STAFF BOUNDARY</span>
+                          )}
                         </td>
                         <td className="p-5">
                           <span className={`inline-block font-semibold px-2 py-0.5 rounded text-[8px] uppercase tracking-widest ${
@@ -1023,14 +734,17 @@ export default function AdminDashboard() {
                           </span>
                         </td>
                         <td className="p-5 text-right flex justify-end space-x-2">
-                          <button
-                            onClick={() => handleToggleUserSuspension(u.id, u.is_suspended)}
-                            className={`p-2 border rounded-full transition-colors ${
-                              u.is_suspended ? 'bg-green-500/10 border-green-500/30 text-green-500 hover:bg-green-500/20' : 'bg-red-500/10 border-red-500/30 text-red-500 hover:bg-red-500/20'
-                            }`}
-                          >
-                            <Ban className="w-3.5 h-3.5" />
-                          </button>
+                          {u.role === 'Customer' && (
+                            <button
+                              onClick={() => handleToggleUserSuspension(u.id, u.is_suspended)}
+                              className={`p-2 border rounded-full transition-colors ${
+                                u.is_suspended ? 'bg-green-500/10 border-green-500/30 text-green-500 hover:bg-green-500/20' : 'bg-red-500/10 border-red-500/30 text-red-500 hover:bg-red-500/20'
+                              }`}
+                            >
+                              <Ban className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          <span className="text-[10px] text-[#525252] font-mono">OK</span>
                         </td>
                       </tr>
                     ))}
@@ -1040,13 +754,13 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          {/* ==================== 4. PRODUCTS CRUD ==================== */}
+          {/* ==================== 4. PRODUCTS CRUD & SEATING VIEW ==================== */}
           {activeModule === 'products' && (
             <div className="space-y-6 animate-fade-in">
               <div className="flex items-center justify-between border-b border-[#2A2A2A] pb-6">
                 <div>
-                  <h2 className="font-serif-luxury text-2xl font-bold uppercase text-white">CATALOG BUILDER</h2>
-                  <p className="text-xs text-[#8A8A8A]">Drag and drop product cards to book fixed grid seating coordinates, or register products.</p>
+                  <h2 className="font-serif-luxury text-2xl font-bold uppercase text-white">ARCHIVE CATALOG BUILDER</h2>
+                  <p className="text-xs text-[#8A8A8A]">Drag and drop product cards to book fixed grid seating coordinates, or create products.</p>
                 </div>
                 <button
                   onClick={() => setShowProductForm(!showProductForm)}
@@ -1057,6 +771,7 @@ export default function AdminDashboard() {
                 </button>
               </div>
 
+              {/* Product Creation form drawer/modal */}
               {showProductForm && (
                 <form onSubmit={handleCreateProduct} className="bg-[#0A0A0A] border border-[#2A2A2A] rounded-2xl p-8 space-y-6">
                   <span className="text-xs uppercase tracking-widest text-[#B5B5B5] font-semibold border-b border-[#2A2A2A] pb-2 block">
@@ -1127,12 +842,22 @@ export default function AdminDashboard() {
                       />
                     </div>
                     <div className="space-y-1.5">
-                      <label className="text-[#8A8A8A] font-semibold uppercase block">GALLERY IMAGES ARRAY (JSON format - 2 to 10 minimum)</label>
+                      <label className="text-[#8A8A8A] font-semibold uppercase block">GALLERY IMAGES URLS ARRAY (JSON format - 2 to 10 minimum)</label>
                       <input
                         type="text" value={prodForm.images} onChange={(e) => setProdForm({...prodForm, images: e.target.value})}
                         className="w-full bg-black border border-[#2A2A2A] rounded-xl px-4 py-3 outline-none text-white font-mono"
                       />
                     </div>
+                  </div>
+
+                  <div className="flex items-center space-x-6 text-xs">
+                    <label className="flex items-center space-x-2.5 cursor-pointer">
+                      <input
+                        type="checkbox" checked={prodForm.is_trending} onChange={(e) => setProdForm({...prodForm, is_trending: e.target.checked})}
+                        className="rounded bg-black border-[#2A2A2A] text-white focus:ring-0 w-4 h-4"
+                      />
+                      <span className="font-semibold uppercase text-white">SET AS TRENDING PRODUCT</span>
+                    </label>
                   </div>
 
                   <button
@@ -1144,10 +869,12 @@ export default function AdminDashboard() {
                 </form>
               )}
 
+              {/* Drag and Drop Seating Layout Seating */}
               <div className="bg-[#0A0A0A] border border-[#2A2A2A] rounded-2xl p-6 space-y-4">
                 <span className="text-xs uppercase tracking-widest text-[#8A8A8A] font-semibold block">
                   MANUAL GRID SEATING MANAGER (DRAG CARDS TO REPOSITION)
                 </span>
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
                   {products.map((item, idx) => (
                     <div
@@ -1174,15 +901,16 @@ export default function AdminDashboard() {
                   ))}
                 </div>
               </div>
+
             </div>
           )}
 
-          {/* ==================== 5. COUPONS MODULE ==================== */}
+          {/* ==================== 5. COUPONS MODULE VIEW ==================== */}
           {activeModule === 'coupons' && (
             <div className="space-y-6 animate-fade-in">
               <div className="flex items-center justify-between border-b border-[#2A2A2A] pb-6">
                 <div>
-                  <h2 className="font-serif-luxury text-2xl font-bold uppercase text-white">COUPON ENGINE</h2>
+                  <h2 className="font-serif-luxury text-2xl font-bold uppercase text-white">COUPON & PROMOTION ENGINE</h2>
                   <p className="text-xs text-[#8A8A8A]">Build Private VIP outreach coupons or Public Sub-public products promo codes.</p>
                 </div>
                 <button
@@ -1194,6 +922,7 @@ export default function AdminDashboard() {
                 </button>
               </div>
 
+              {/* Coupon creator form */}
               {showCouponForm && (
                 <form onSubmit={handleCreateCoupon} className="bg-[#0A0A0A] border border-[#2A2A2A] rounded-2xl p-8 space-y-6 text-xs">
                   <span className="text-xs uppercase tracking-widest text-[#B5B5B5] font-semibold border-b border-[#2A2A2A] pb-2 block">
@@ -1249,14 +978,14 @@ export default function AdminDashboard() {
                       />
                     </div>
                     <div className="space-y-1.5">
-                      <label className="text-[#8A8A8A] font-semibold uppercase block">ACTIVE FROM</label>
+                      <label className="text-[#8A8A8A] font-semibold uppercase block">ACTIVE FROM TIMESTAMP</label>
                       <input
                         type="date" value={coupForm.active_from} onChange={(e) => setCoupForm({...coupForm, active_from: e.target.value})}
                         className="w-full bg-black border border-[#2A2A2A] rounded-xl px-4 py-3 outline-none text-white focus:border-white transition-all"
                       />
                     </div>
                     <div className="space-y-1.5">
-                      <label className="text-[#8A8A8A] font-semibold uppercase block">ACTIVE TO</label>
+                      <label className="text-[#8A8A8A] font-semibold uppercase block">ACTIVE TO TIMESTAMP</label>
                       <input
                         type="date" value={coupForm.active_to} onChange={(e) => setCoupForm({...coupForm, active_to: e.target.value})}
                         className="w-full bg-black border border-[#2A2A2A] rounded-xl px-4 py-3 outline-none text-white focus:border-white transition-all"
@@ -1273,6 +1002,7 @@ export default function AdminDashboard() {
                 </form>
               )}
 
+              {/* Coupons List */}
               <div className="bg-[#0A0A0A] border border-[#2A2A2A] rounded-2xl overflow-hidden">
                 <table className="w-full text-left text-xs text-[#B5B5B5]">
                   <thead className="bg-black text-[#8A8A8A] uppercase font-semibold border-b border-[#2A2A2A]">
@@ -1280,7 +1010,8 @@ export default function AdminDashboard() {
                       <th className="p-5">PROMO CODE</th>
                       <th className="p-5">COUPON TYPE</th>
                       <th className="p-5">VALUE</th>
-                      <th className="p-5">ACTIVE WINDOW</th>
+                      <th className="p-5">ACTIVE FROM</th>
+                      <th className="p-5">ACTIVE TO</th>
                       <th className="p-5">REDEMPTIONS COUNT</th>
                       <th className="p-5 text-right">STATUS</th>
                     </tr>
@@ -1293,7 +1024,8 @@ export default function AdminDashboard() {
                         <td className="p-5 font-bold text-white">
                           {c.discount_type === 'percent' ? `${c.discount_value}% OFF` : `₹${c.discount_value} OFF`}
                         </td>
-                        <td className="p-5 font-mono">{c.active_from} to {c.active_to}</td>
+                        <td className="p-5 font-mono">{c.active_from}</td>
+                        <td className="p-5 font-mono">{c.active_to}</td>
                         <td className="p-5">
                           {c.redeemed_count} / {c.max_redemptions} LIMIT
                         </td>
@@ -1305,352 +1037,15 @@ export default function AdminDashboard() {
                   </tbody>
                 </table>
               </div>
+
             </div>
           )}
 
-          {/* ==================== 6. EDITORIALS (BLOGS) MODULE ==================== */}
-          {activeModule === 'blogs' && (
-            <div className="space-y-6 animate-fade-in">
-              <div className="flex items-center justify-between border-b border-[#2A2A2A] pb-6">
-                <div>
-                  <h2 className="font-serif-luxury text-2xl font-bold uppercase text-white">EDITORIALS & PUBLICATIONS</h2>
-                  <p className="text-xs text-[#8A8A8A]">Author, tag, and publish premium luxury streetwear stories.</p>
-                </div>
-                <button
-                  onClick={() => {
-                    setEditingBlog(null);
-                    setBlogForm({ title: '', content: '', category: 'Design', is_published: false });
-                    setShowBlogForm(!showBlogForm);
-                  }}
-                  className="flex items-center space-x-2 bg-[#F8F6F2] hover:bg-white text-black text-xs font-bold uppercase px-5 py-3 rounded-full transition-all"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>NEW PUBLICATION</span>
-                </button>
-              </div>
-
-              {showBlogForm && (
-                <form onSubmit={handleCreateOrUpdateBlog} className="bg-[#0A0A0A] border border-[#2A2A2A] rounded-2xl p-8 space-y-6 text-xs">
-                  <span className="text-xs uppercase tracking-widest text-[#B5B5B5] font-semibold border-b border-[#2A2A2A] pb-2 block">
-                    {editingBlog ? 'EDIT PUBLICATION' : 'CREATE NEW LUXURY EDITORIAL'}
-                  </span>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-1.5">
-                      <label className="text-[#8A8A8A] font-semibold uppercase block">EDITORIAL TITLE</label>
-                      <input
-                        type="text" required placeholder="e.g. THE ARCHITECTURE OF MODERN DENIM"
-                        value={blogForm.title} onChange={(e) => setBlogForm({...blogForm, title: e.target.value})}
-                        className="w-full bg-black border border-[#2A2A2A] rounded-xl px-4 py-3 outline-none text-white focus:border-white transition-all uppercase"
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-[#8A8A8A] font-semibold uppercase block">CATEGORY TAG</label>
-                      <select
-                        value={blogForm.category} onChange={(e) => setBlogForm({...blogForm, category: e.target.value})}
-                        className="w-full bg-black border border-[#2A2A2A] rounded-xl px-4 py-3 outline-none text-white focus:border-white transition-all uppercase font-semibold"
-                      >
-                        <option value="Design">Design</option>
-                        <option value="Marketing">Marketing</option>
-                        <option value="Operations">Operations</option>
-                        <option value="Culture">Culture</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-[#8A8A8A] font-semibold uppercase block">BODY CONTENT (HTML / MARKDOWN / TEXT)</label>
-                    <textarea
-                      rows={6} required placeholder="Write the editorial content details here..."
-                      value={blogForm.content} onChange={(e) => setBlogForm({...blogForm, content: e.target.value})}
-                      className="w-full bg-black border border-[#2A2A2A] rounded-xl px-4 py-3 outline-none text-white focus:border-white transition-all"
-                    />
-                  </div>
-
-                  <div className="flex items-center space-x-3 cursor-pointer">
-                    <input
-                      type="checkbox" checked={blogForm.is_published} onChange={(e) => setBlogForm({...blogForm, is_published: e.target.checked})}
-                      className="rounded bg-black border-[#2A2A2A] text-white focus:ring-0 w-4 h-4"
-                    />
-                    <span className="font-semibold uppercase text-white">PUBLISH IMMEDIATELY (VISIBLE PUBLIC STOREFRONT)</span>
-                  </div>
-
-                  <div className="flex space-x-3">
-                    <button type="submit" className="bg-[#F8F6F2] hover:bg-white text-black px-8 py-3.5 rounded-full font-bold uppercase tracking-widest transition-all">
-                      SAVE PUBLICATION
-                    </button>
-                    <button type="button" onClick={() => setShowBlogForm(false)} className="border border-[#2A2A2A] hover:border-white px-8 py-3.5 rounded-full font-bold uppercase tracking-widest transition-all bg-black text-white">
-                      CANCEL
-                    </button>
-                  </div>
-                </form>
-              )}
-
-              <div className="bg-[#0A0A0A] border border-[#2A2A2A] rounded-2xl overflow-hidden">
-                <table className="w-full text-left text-xs text-[#B5B5B5]">
-                  <thead className="bg-black text-[#8A8A8A] uppercase font-semibold border-b border-[#2A2A2A]">
-                    <tr>
-                      <th className="p-5">EDITORIAL BLOG TITLE</th>
-                      <th className="p-5">CATEGORY</th>
-                      <th className="p-5">AUTHOR</th>
-                      <th className="p-5">CREATED DATE</th>
-                      <th className="p-5">STATUS</th>
-                      <th className="p-5 text-right">ACTIONS</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#2A2A2A]">
-                    {blogs.map((b) => (
-                      <tr key={b.id} className="hover:bg-[#111111]/30 transition-colors">
-                        <td className="p-5 font-bold text-white uppercase">{b.title}</td>
-                        <td className="p-5 uppercase">{b.category}</td>
-                        <td className="p-5 text-white font-semibold uppercase">{b.author_name || 'Admin'}</td>
-                        <td className="p-5 font-mono">{new Date(b.created_at).toLocaleDateString()}</td>
-                        <td className="p-5">
-                          <span className={`inline-block font-semibold px-2 py-0.5 rounded text-[8px] tracking-widest uppercase ${
-                            b.is_published ? 'bg-green-500/10 border border-green-500/30 text-green-500' : 'bg-amber-500/10 border border-amber-500/30 text-amber-500'
-                          }`}>
-                            {b.is_published ? 'PUBLISHED' : 'DRAFT'}
-                          </span>
-                        </td>
-                        <td className="p-5 text-right flex justify-end space-x-2">
-                          <button
-                            onClick={() => {
-                              setEditingBlog(b);
-                              setBlogForm({ title: b.title, content: b.content, category: b.category, is_published: b.is_published === 1 });
-                              setShowBlogForm(true);
-                            }}
-                            className="bg-black hover:border-white border border-[#2A2A2A] text-white px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider"
-                          >
-                            EDIT
-                          </button>
-                          <button
-                            onClick={() => handleDeleteBlog(b.id)}
-                            className="bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/30 p-1.5 rounded-full"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {/* ==================== 7. STAFF TEAM MODULE ==================== */}
-          {activeModule === 'employees' && (
-            <div className="space-y-6 animate-fade-in">
-              <div className="flex items-center justify-between border-b border-[#2A2A2A] pb-6">
-                <div>
-                  <h2 className="font-serif-luxury text-2xl font-bold uppercase text-white">STAFF ROSTER MANAGEMENT</h2>
-                  <p className="text-xs text-[#8A8A8A]">Assign permissions, toggle overrides, and add employee accounts directly.</p>
-                </div>
-                <button
-                  onClick={() => setShowEmployeeForm(!showEmployeeForm)}
-                  className="flex items-center space-x-2 bg-[#F8F6F2] hover:bg-white text-black text-xs font-bold uppercase px-5 py-3 rounded-full transition-all"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>ADD STAFF ACCOUNT</span>
-                </button>
-              </div>
-
-              {showEmployeeForm && (
-                <form onSubmit={handleCreateEmployee} className="bg-[#0A0A0A] border border-[#2A2A2A] rounded-2xl p-8 space-y-6 text-xs">
-                  <span className="text-xs uppercase tracking-widest text-[#B5B5B5] font-semibold border-b border-[#2A2A2A] pb-2 block">
-                    REGISTER A DIRECT STAFF MEMBER
-                  </span>
-
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                    <div className="space-y-1.5">
-                      <label className="text-[#8A8A8A] font-semibold uppercase block">NAME</label>
-                      <input
-                        type="text" required placeholder="e.g. MARCUS AURELIUS"
-                        value={empForm.name} onChange={(e) => setEmpForm({...empForm, name: e.target.value})}
-                        className="w-full bg-black border border-[#2A2A2A] rounded-xl px-4 py-3 outline-none text-white focus:border-white transition-all uppercase"
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-[#8A8A8A] font-semibold uppercase block">EMAIL ADDRESS</label>
-                      <input
-                        type="email" required placeholder="marcus@weartome.com"
-                        value={empForm.email} onChange={(e) => setEmpForm({...empForm, email: e.target.value})}
-                        className="w-full bg-black border border-[#2A2A2A] rounded-xl px-4 py-3 outline-none text-white focus:border-white transition-all font-mono"
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-[#8A8A8A] font-semibold uppercase block">TEMPORARY PASSWORD</label>
-                      <input
-                        type="password" required placeholder="••••••••"
-                        value={empForm.password} onChange={(e) => setEmpForm({...empForm, password: e.target.value})}
-                        className="w-full bg-black border border-[#2A2A2A] rounded-xl px-4 py-3 outline-none text-white focus:border-white transition-all"
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-[#8A8A8A] font-semibold uppercase block">ASSIGN FIXED ROLE</label>
-                      <select
-                        value={empForm.role} onChange={(e) => setEmpForm({...empForm, role: e.target.value})}
-                        className="w-full bg-black border border-[#2A2A2A] rounded-xl px-4 py-3 outline-none text-white focus:border-white transition-all uppercase font-semibold"
-                      >
-                        <option value="Sub-admin">Sub-admin</option>
-                        <option value="Manager">Manager</option>
-                        <option value="Customer Care">Customer Care</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <button type="submit" className="bg-[#F8F6F2] hover:bg-white text-black px-8 py-3.5 rounded-full font-bold uppercase tracking-widest transition-all">
-                    REGISTER TEAM MEMBER
-                  </button>
-                </form>
-              )}
-
-              <div className="bg-[#0A0A0A] border border-[#2A2A2A] rounded-2xl overflow-hidden">
-                <table className="w-full text-left text-xs text-[#B5B5B5]">
-                  <thead className="bg-black text-[#8A8A8A] uppercase font-semibold border-b border-[#2A2A2A]">
-                    <tr>
-                      <th className="p-5">STAFF NAME</th>
-                      <th className="p-5">EMAIL</th>
-                      <th className="p-5">ROLE</th>
-                      <th className="p-5">SYSTEM STATUS</th>
-                      <th className="p-5 text-right">AUTHORIZATION SECURITY</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#2A2A2A]">
-                    {staffRoster.map((st) => (
-                      <tr key={st.id} className="hover:bg-[#111111]/30 transition-colors">
-                        <td className="p-5 font-bold text-white uppercase">{st.name}</td>
-                        <td className="p-5 font-mono">{st.email}</td>
-                        <td className="p-5">
-                          <span className="font-semibold text-white uppercase tracking-wider">{st.role}</span>
-                        </td>
-                        <td className="p-5">
-                          <span className="text-green-500 font-extrabold text-[8px] tracking-widest">ACTIVE / VERIFIED</span>
-                        </td>
-                        <td className="p-5 text-right font-mono text-[9px] text-[#8A8A8A]">
-                          SECURED SHA-256 SESSION TOKENS
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {/* ==================== 8. APPLICANTS MODULE ==================== */}
-          {activeModule === 'careers' && (
-            <div className="space-y-6 animate-fade-in relative">
-              <div className="border-b border-[#2A2A2A] pb-6">
-                <h2 className="font-serif-luxury text-2xl font-bold uppercase text-white">CAREER APPLICATIONS INBOX</h2>
-                <p className="text-xs text-[#8A8A8A]">Review incoming talent submissions and convert them directly to employee roles.</p>
-              </div>
-
-              {careers.length === 0 ? (
-                <div className="py-20 text-center text-xs text-[#8A8A8A] uppercase bg-[#0A0A0A] border border-[#2A2A2A] rounded-2xl">
-                  No applications received.
-                </div>
-              ) : (
-                <div className="bg-[#0A0A0A] border border-[#2A2A2A] rounded-2xl overflow-hidden">
-                  <table className="w-full text-left text-xs text-[#B5B5B5]">
-                    <thead className="bg-black text-[#8A8A8A] uppercase font-semibold border-b border-[#2A2A2A]">
-                      <tr>
-                        <th className="p-5">APPLICANT</th>
-                        <th className="p-5">EMAIL</th>
-                        <th className="p-5">ROLE FOCUS</th>
-                        <th className="p-5">SUBMISSION DATE</th>
-                        <th className="p-5">DECISION STATUS</th>
-                        <th className="p-5 text-right">ACTIONS</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[#2A2A2A]">
-                      {careers.map((app) => (
-                        <tr key={app.id} className="hover:bg-[#111111]/30 transition-colors">
-                          <td className="p-5 font-bold text-white uppercase">{app.name}</td>
-                          <td className="p-5 font-mono">{app.email}</td>
-                          <td className="p-5 uppercase font-semibold text-white">{app.role_interest}</td>
-                          <td className="p-5 font-mono">{new Date(app.created_at).toLocaleDateString()}</td>
-                          <td className="p-5">
-                            <span className={`inline-block font-semibold px-2 py-0.5 rounded text-[8px] tracking-widest uppercase ${
-                              app.status === 'Approved' ? 'bg-green-500/10 border border-green-500/30 text-green-500' :
-                              app.status === 'Rejected' ? 'bg-red-500/10 border border-red-500/30 text-red-500' :
-                              'bg-amber-500/10 border border-amber-500/30 text-amber-500'
-                            }`}>
-                              {app.status}
-                            </span>
-                          </td>
-                          <td className="p-5 text-right flex justify-end space-x-2">
-                            <button
-                              onClick={() => {
-                                setSelectedCareer(app);
-                                setShowConvertEmployee(true);
-                              }}
-                              className="bg-black hover:border-white border border-[#2A2A2A] text-white px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider flex items-center space-x-1"
-                            >
-                              <UserCheck className="w-3.5 h-3.5" />
-                              <span>PROMOTE</span>
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-
-              {/* Convert Applicant Modal */}
-              {showConvertEmployee && selectedCareer && (
-                <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
-                  <div className="bg-[#0A0A0A] border border-[#2A2A2A] rounded-2xl max-w-md w-full p-8 space-y-6 text-xs text-white">
-                    <div className="flex items-center justify-between border-b border-[#2A2A2A] pb-3">
-                      <span className="font-serif-luxury text-lg font-bold uppercase">PROMOTE TO TEAM MEMBER</span>
-                      <button onClick={() => setShowConvertEmployee(false)} className="p-1 border border-[#2A2A2A] rounded-full text-[#8A8A8A] hover:text-white">
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-
-                    <div className="space-y-1.5 bg-black p-4 border border-[#2A2A2A] rounded-xl text-xs text-[#8A8A8A]">
-                      <span className="font-bold text-white block uppercase mb-1">PROSPECT PROFILE</span>
-                      <p>NAME: {selectedCareer.name}</p>
-                      <p>EMAIL: {selectedCareer.email}</p>
-                      <p>WANTED: {selectedCareer.role_interest}</p>
-                    </div>
-
-                    <form onSubmit={handleConvertApplicant} className="space-y-4">
-                      <div className="space-y-1.5">
-                        <label className="text-[#8A8A8A] font-semibold uppercase block">CHOOSE FIXED ROLE</label>
-                        <select
-                          value={convertRole} onChange={(e) => setConvertRole(e.target.value)}
-                          className="w-full bg-black border border-[#2A2A2A] rounded-xl px-4 py-3 outline-none text-white focus:border-white uppercase font-semibold"
-                        >
-                          <option value="Sub-admin">Sub-admin</option>
-                          <option value="Manager">Manager</option>
-                          <option value="Customer Care">Customer Care</option>
-                        </select>
-                      </div>
-
-                      <div className="space-y-1.5">
-                        <label className="text-[#8A8A8A] font-semibold uppercase block">TEMPORARY PASSWORD</label>
-                        <input
-                          type="text" required
-                          value={convertPassword} onChange={(e) => setConvertPassword(e.target.value)}
-                          className="w-full bg-black border border-[#2A2A2A] rounded-xl px-4 py-3 outline-none text-white focus:border-white"
-                        />
-                      </div>
-
-                      <button type="submit" className="w-full bg-[#F8F6F2] hover:bg-white text-black py-3.5 rounded-full font-bold uppercase tracking-widest transition-all text-center">
-                        CONFIRM & PROSERVE ACCOUNT
-                      </button>
-                    </form>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* ==================== 9. SUPPORT CHAT MODULE ==================== */}
+          {/* ==================== 6. CHAT SUPPORT VIEW ==================== */}
           {activeModule === 'chat' && (
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 h-[600px] bg-[#0A0A0A] border border-[#2A2A2A] rounded-2xl overflow-hidden animate-fade-in text-xs">
+
+              {/* LEFT COLUMN: Active Support conversations threads list */}
               <div className="lg:col-span-4 border-r border-[#2A2A2A] flex flex-col h-full bg-black/30">
                 <div className="p-6 border-b border-[#2A2A2A] flex items-center justify-between">
                   <span className="text-xs uppercase tracking-widest text-white font-bold">SUPPORT CHAT INBOX</span>
@@ -1658,9 +1053,12 @@ export default function AdminDashboard() {
                     <Activity className="w-3.5 h-3.5" />
                   </button>
                 </div>
+
                 <div className="flex-grow overflow-y-auto divide-y divide-[#2A2A2A] scrollbar-hide">
                   {chatThreads.length === 0 ? (
-                    <div className="p-8 text-center text-[#8A8A8A] uppercase">No active threads.</div>
+                    <div className="p-8 text-center text-[#8A8A8A] uppercase">
+                      No active conversation threads.
+                    </div>
                   ) : (
                     chatThreads.map((th) => {
                       const isSel = activeThreadId === th.customer_id;
@@ -1673,7 +1071,12 @@ export default function AdminDashboard() {
                           }`}
                         >
                           <div className="flex justify-between items-center">
-                            <span className="font-bold text-white uppercase block">{th.customer_name}</span>
+                            <span className="font-bold text-white uppercase block leading-none">{th.customer_name}</span>
+                            {th.unread_count > 0 && (
+                              <span className="bg-[#F8F6F2] text-black text-[9px] font-extrabold px-1.5 py-0.5 rounded-full">
+                                {th.unread_count} NEW
+                              </span>
+                            )}
                           </div>
                           <span className="text-[#8A8A8A] block truncate">{th.last_message || 'No messages'}</span>
                         </button>
@@ -1683,22 +1086,30 @@ export default function AdminDashboard() {
                 </div>
               </div>
 
+              {/* RIGHT COLUMN: Selected thread support messages log */}
               <div className="lg:col-span-8 flex flex-col h-full justify-between">
                 {activeThreadId ? (
                   <>
-                    <div className="p-6 border-b border-[#2A2A2A] bg-black/20">
-                      <span className="font-bold text-white text-sm uppercase">
-                        {chatThreads.find((t) => t.customer_id === activeThreadId)?.customer_name || 'Active Customer'}
-                      </span>
+                    {/* Header partner details */}
+                    <div className="p-6 border-b border-[#2A2A2A] flex items-center justify-between bg-black/20">
+                      <div>
+                        <span className="text-[10px] text-[#8A8A8A] uppercase tracking-wider font-semibold block">CONVERSATION METADATA</span>
+                        <span className="font-bold text-white text-sm uppercase block mt-0.5">
+                          {chatThreads.find((t) => t.customer_id === activeThreadId)?.customer_name || 'Active Customer'}
+                        </span>
+                      </div>
                     </div>
 
-                    <div className="flex-grow overflow-y-auto p-6 space-y-4 bg-black/45">
+                    {/* Scrolling message logs bubbles */}
+                    <div className="flex-grow overflow-y-auto p-6 space-y-4 scrollbar-hide bg-black/45">
                       {chatMessages.map((msg) => {
                         const isMe = msg.sender_id === sessionUser.id;
                         return (
                           <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
                             <div className={`max-w-xs p-4 rounded-xl text-xs space-y-1 border ${
-                              isMe ? 'bg-[#171717] border-[#2A2A2A] text-white rounded-br-none' : 'bg-[#F8F6F2] text-black border-white rounded-bl-none'
+                              isMe
+                                ? 'bg-[#171717] border-[#2A2A2A] text-white rounded-br-none'
+                                : 'bg-[#F8F6F2] text-black border-white rounded-bl-none'
                             }`}>
                               <p className="leading-relaxed whitespace-pre-wrap">{msg.content}</p>
                               <span className="block text-[8px] opacity-75 text-right">
@@ -1711,6 +1122,7 @@ export default function AdminDashboard() {
                       <div ref={chatBottomRef} />
                     </div>
 
+                    {/* Action form */}
                     <form onSubmit={handleSendReply} className="p-4 border-t border-[#2A2A2A] bg-black flex items-center space-x-3">
                       <input
                         type="text"
@@ -1719,7 +1131,7 @@ export default function AdminDashboard() {
                         onChange={(e) => setTypedMessage(e.target.value)}
                         className="bg-[#0A0A0A] border border-[#2A2A2A] rounded-full px-5 py-3.5 text-xs text-white outline-none flex-grow focus:border-white transition-all uppercase"
                       />
-                      <button type="submit" className="bg-[#F8F6F2] hover:bg-white text-black p-3.5 rounded-full transition-colors">
+                      <button type="submit" className="bg-[#F8F6F2] hover:bg-white text-black p-3.5 rounded-full transition-colors flex-shrink-0">
                         <Send className="w-4 h-4" />
                       </button>
                     </form>
@@ -1727,257 +1139,11 @@ export default function AdminDashboard() {
                 ) : (
                   <div className="h-full flex flex-col items-center justify-center text-center p-8 space-y-3 text-[#8A8A8A]">
                     <span className="text-xs uppercase tracking-widest">Select an active conversation thread.</span>
+                    <p className="text-xs max-w-xs">Exchanged messages and support query timeline histories will populate here instantly.</p>
                   </div>
                 )}
               </div>
-            </div>
-          )}
 
-          {/* ==================== 10. NOTIFICATIONS MODULE ==================== */}
-          {activeModule === 'notifications' && (
-            <div className="space-y-6 animate-fade-in text-xs">
-              <div className="flex items-center justify-between border-b border-[#2A2A2A] pb-6">
-                <div>
-                  <h2 className="font-serif-luxury text-2xl font-bold uppercase text-white">ALERT & NOTIFICATION CENTER</h2>
-                  <p className="text-xs text-[#8A8A8A]">Dynamic system monitors and manual admin notification broadcasts.</p>
-                </div>
-                {unreadNotificationsCount > 0 && (
-                  <button
-                    onClick={handleMarkAllNotificationsRead}
-                    className="bg-black border border-[#2A2A2A] hover:border-white text-white text-xs font-bold uppercase px-5 py-3 rounded-full transition-all"
-                  >
-                    MARK ALL READ
-                  </button>
-                )}
-              </div>
-
-              {adminNotifications.length === 0 ? (
-                <div className="py-20 text-center text-xs text-[#8A8A8A] uppercase bg-[#0A0A0A] border border-[#2A2A2A] rounded-2xl">
-                  No notifications recorded.
-                </div>
-              ) : (
-                <div className="space-y-4 max-w-4xl">
-                  {adminNotifications.map((notif) => (
-                    <div
-                      key={notif.id}
-                      className={`p-6 border rounded-2xl flex items-start justify-between transition-all ${
-                        notif.is_read ? 'bg-[#0A0A0A] border-[#2A2A2A]' : 'bg-[#171717] border-white/20'
-                      }`}
-                    >
-                      <div className="space-y-1.5">
-                        <div className="flex items-center space-x-2">
-                          <span className={`w-2 h-2 rounded-full ${notif.is_read ? 'bg-[#525252]' : 'bg-red-500 animate-pulse'}`} />
-                          <span className="font-bold text-white uppercase tracking-wider">{notif.title}</span>
-                        </div>
-                        <p className="text-[#8A8A8A] text-xs leading-relaxed">{notif.message}</p>
-                        <span className="block text-[10px] text-[#525252] font-mono">{new Date(notif.created_at).toLocaleString()}</span>
-                      </div>
-                      {!notif.is_read && (
-                        <button
-                          onClick={async () => {
-                            await fetch('/api/notifications', {
-                              method: 'PUT',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ id: notif.id })
-                            });
-                            loadNotifications();
-                          }}
-                          className="bg-black hover:border-white border border-[#2A2A2A] px-3.5 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider"
-                        >
-                          MARK READ
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* ==================== 11. SETTINGS MODULE ==================== */}
-          {activeModule === 'settings' && (
-            <div className="space-y-8 animate-fade-in text-xs">
-              <div className="border-b border-[#2A2A2A] pb-6">
-                <h2 className="font-serif-luxury text-2xl font-bold uppercase text-white">SYSTEM SETTINGS</h2>
-                <p className="text-xs text-[#8A8A8A]">Configure luxury site branding variables, toggle AI assistants, or apply color presets.</p>
-              </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-                {/* BRANDING FORM */}
-                <form onSubmit={handleSaveSettings} className="lg:col-span-8 bg-[#0A0A0A] border border-[#2A2A2A] rounded-2xl p-8 space-y-6">
-                  <span className="text-xs uppercase tracking-widest text-white font-bold block border-b border-[#2A2A2A] pb-2">
-                    WEBSITE BRAND CONTENT CONFIG
-                  </span>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-1.5">
-                      <label className="text-[#8A8A8A] font-semibold uppercase block">STORE FRONT NAME</label>
-                      <input
-                        type="text" value={webSettings['site.name'] || ''}
-                        onChange={(e) => setWebSettings({...webSettings, 'site.name': e.target.value})}
-                        className="w-full bg-black border border-[#2A2A2A] rounded-xl px-4 py-3 outline-none text-white focus:border-white transition-all uppercase"
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-[#8A8A8A] font-semibold uppercase block">STORE EDITORIAL TAGLINE</label>
-                      <input
-                        type="text" value={webSettings['site.tagline'] || ''}
-                        onChange={(e) => setWebSettings({...webSettings, 'site.tagline': e.target.value})}
-                        className="w-full bg-black border border-[#2A2A2A] rounded-xl px-4 py-3 outline-none text-white focus:border-white transition-all uppercase"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-[#8A8A8A] font-semibold uppercase block">SEO META TITLE</label>
-                    <input
-                      type="text" value={webSettings['site.seo_title'] || ''}
-                      onChange={(e) => setWebSettings({...webSettings, 'site.seo_title': e.target.value})}
-                      className="w-full bg-black border border-[#2A2A2A] rounded-xl px-4 py-3 outline-none text-white focus:border-white transition-all uppercase"
-                    />
-                  </div>
-
-                  <span className="text-xs uppercase tracking-widest text-white font-bold block pt-4 border-b border-[#2A2A2A] pb-2">
-                    SYSTEM TOGGLES
-                  </span>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-1.5">
-                      <label className="text-[#8A8A8A] font-semibold uppercase block">AI CHATBOT STATUS</label>
-                      <select
-                        value={systemSettings['ai_enabled']}
-                        onChange={(e) => setSystemSettings({...systemSettings, 'ai_enabled': e.target.value})}
-                        className="w-full bg-black border border-[#2A2A2A] rounded-xl px-4 py-3 outline-none text-white focus:border-white transition-all uppercase font-semibold"
-                      >
-                        <option value="1">ENABLED</option>
-                        <option value="0">DISABLED</option>
-                      </select>
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-[#8A8A8A] font-semibold uppercase block">VOICE CAPABILITY (HINDI SUPPORT)</label>
-                      <select
-                        value={systemSettings['voice_enabled']}
-                        onChange={(e) => setSystemSettings({...systemSettings, 'voice_enabled': e.target.value})}
-                        className="w-full bg-black border border-[#2A2A2A] rounded-xl px-4 py-3 outline-none text-white focus:border-white transition-all uppercase font-semibold"
-                      >
-                        <option value="1">ENABLED</option>
-                        <option value="0">DISABLED</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <button type="submit" className="bg-[#F8F6F2] hover:bg-white text-black px-8 py-3.5 rounded-full font-bold uppercase tracking-widest transition-all">
-                    SAVE SYSTEM CONFIGURATION
-                  </button>
-                </form>
-
-                {/* VISUAL DESIGN PRESETS */}
-                <div className="lg:col-span-4 bg-[#0A0A0A] border border-[#2A2A2A] rounded-2xl p-6 space-y-6">
-                  <span className="text-xs uppercase tracking-widest text-white font-bold block border-b border-[#2A2A2A] pb-2">
-                    DESIGN PRESETS
-                  </span>
-
-                  <div className="space-y-4">
-                    {presets.map((preset) => (
-                      <div key={preset.id} className="bg-black border border-[#2A2A2A] rounded-xl p-4 space-y-3">
-                        <div className="flex justify-between items-center">
-                          <span className="font-bold text-white uppercase">{preset.name}</span>
-                          <span className="text-[9px] text-[#8A8A8A] uppercase">{preset.tokens.fontFamily}</span>
-                        </div>
-                        <div className="flex space-x-2">
-                          <span className="w-5 h-5 rounded-full border border-white/20" style={{ backgroundColor: preset.tokens.primaryBackground }} />
-                          <span className="w-5 h-5 rounded-full border border-white/20" style={{ backgroundColor: preset.tokens.accentColor }} />
-                        </div>
-                        <button
-                          onClick={() => handleApplyPreset(preset)}
-                          className="w-full bg-[#111111] hover:bg-white hover:text-black border border-[#2A2A2A] text-white py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all"
-                        >
-                          APPLY THEME PRESET
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* ==================== 12. REVENUE / PAYMENTS MODULE ==================== */}
-          {activeModule === 'revenue' && (
-            <div className="space-y-6 animate-fade-in text-xs">
-              <div className="border-b border-[#2A2A2A] pb-6">
-                <h2 className="font-serif-luxury text-2xl font-bold uppercase text-white">REVENUE & MARGIN REPORT</h2>
-                <p className="text-xs text-[#8A8A8A]">Trace cash flow metrics, margins, and simulated refund offsets.</p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-[#0A0A0A] border border-[#2A2A2A] rounded-2xl p-6 space-y-2">
-                  <span className="text-[10px] uppercase tracking-widest text-[#8A8A8A] font-semibold block">TOTAL SALES STREAM</span>
-                  <span className="text-2xl font-bold block text-white">₹{overviewKpis.totalRevenue.toLocaleString()}</span>
-                  <span className="text-[9px] text-[#8A8A8A] block uppercase font-medium">TOTAL INCOMING VOLUME</span>
-                </div>
-                <div className="bg-[#0A0A0A] border border-[#2A2A2A] rounded-2xl p-6 space-y-2">
-                  <span className="text-[10px] uppercase tracking-widest text-[#8A8A8A] font-semibold block">ESTIMATED NET MARGIN (40%)</span>
-                  <span className="text-2xl font-bold block text-white">₹{Math.round(overviewKpis.totalRevenue * 0.4).toLocaleString()}</span>
-                  <span className="text-[9px] text-green-500 block uppercase font-medium">ESTIMATED GROSS EARNINGS</span>
-                </div>
-                <div className="bg-[#0A0A0A] border border-[#2A2A2A] rounded-2xl p-6 space-y-2">
-                  <span className="text-[10px] uppercase tracking-widest text-[#8A8A8A] font-semibold block">REFUNDED VOLUMES</span>
-                  <span className="text-2xl font-bold block text-white">₹{totalRefundedSum.toLocaleString()}</span>
-                  <span className="text-[9px] text-red-500 block uppercase font-medium">CANCELLED REVENUE OFFSET</span>
-                </div>
-              </div>
-
-              <div className="bg-[#0A0A0A] border border-[#2A2A2A] rounded-2xl p-6 space-y-4">
-                <span className="text-xs uppercase tracking-widest text-[#8A8A8A] font-semibold block">
-                  ORDER TRANSACTIONS LEDGER (REFUND PROCESSING)
-                </span>
-
-                <div className="overflow-hidden rounded-xl border border-[#2A2A2A]">
-                  <table className="w-full text-left text-xs text-[#B5B5B5]">
-                    <thead className="bg-black text-[#8A8A8A] uppercase border-b border-[#2A2A2A]">
-                      <tr>
-                        <th className="p-4">ORDER REF</th>
-                        <th className="p-4">PAYMENT STATUS</th>
-                        <th className="p-4">SHIPPING STATUS</th>
-                        <th className="p-4">CHARGED VALUE</th>
-                        <th className="p-4 text-right">FINANCIAL ACTIONS</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[#2A2A2A]">
-                      {orders.map((o) => (
-                        <tr key={o.id} className="hover:bg-[#111111]/30 transition-colors">
-                          <td className="p-4 font-mono text-white">{o.payment_ref || `Order #${o.id}`}</td>
-                          <td className="p-4 font-bold uppercase text-white">{o.payment_status}</td>
-                          <td className="p-4 uppercase">{o.status}</td>
-                          <td className="p-4 font-bold text-white">₹{o.total_price.toLocaleString()}</td>
-                          <td className="p-4 text-right">
-                            {o.status === 'Cancelled' && o.payment_status !== 'Refunded' ? (
-                              <button
-                                onClick={async () => {
-                                  // Update payment status to Refunded in SQLite
-                                  await fetch('/api/users', {
-                                    method: 'PUT',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ userId: o.user_id, promotion_tier: o.promotion_tier }) // Mock update triggers refresh
-                                  });
-                                  alert(`Refunded volume of ₹${o.total_price} returned to client.`);
-                                  loadOrders();
-                                }}
-                                className="bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/30 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider"
-                              >
-                                APPROVE REFUND
-                              </button>
-                            ) : (
-                              <span className="text-[10px] text-[#525252] font-mono">SETTLED</span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
             </div>
           )}
 

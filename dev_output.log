@@ -6,7 +6,7 @@
   - Local:        http://localhost:3000
 
  ✓ Starting...
- ✓ Ready in 419ms
+ ✓ Ready in 430ms
 PRAGMA foreign_keys = ON
 Initializing database tables...
 CREATE TABLE IF NOT EXISTS adminauth (
@@ -222,72 +222,27 @@ SELECT id FROM themepreset WHERE name = 'Vibrant Modern'
 SELECT id FROM coupons WHERE code = 'WELCOME10'
 SELECT id FROM coupons WHERE code = 'VIP500'
 Database initialization and seeding completed successfully!
-SELECT * FROM adminauth WHERE email = 'weartome@admin.com'
-SELECT * FROM users WHERE email = 'weartome@admin.com'
-INSERT INTO activitylog (user_id, action, details) VALUES (1.0, 'User Login', 'Successful login with role: Admi'/*+1 bytes*/)
-SELECT * FROM users WHERE id = 1.0
-SELECT COUNT(*) as count FROM notification WHERE user_id = 1.0 AND is_read = 0
-SELECT o.*, u.name as customer_name, u.email as customer_email
-                       FROM orders o
-                       JOIN users u ON o.user_id = u.id ORDER BY o.id DESC
-SELECT id, email, name, phone, role, permissions, gender, how_found, style_pref, category_pref, promotion_tier, is_suspended, suspended_until, created_at FROM users ORDER BY id ASC
+SELECT * FROM adminauth WHERE email = 'testcustomer@weartome.com'
+SELECT * FROM users WHERE email = 'testcustomer@weartome.com'
+INSERT INTO activitylog (user_id, action, details) VALUES (3.0, 'User Login', 'Successful login with role: Cust'/*+4 bytes*/)
 SELECT * FROM products ORDER BY CASE WHEN grid_position IS NULL THEN 999999 ELSE grid_position END ASC, id DESC
 SELECT filepath FROM mediafile WHERE entity_type = 'product' AND entity_id = 3.0 ORDER BY is_primary DESC LIMIT 2
 SELECT filepath FROM mediafile WHERE entity_type = 'product' AND entity_id = 2.0 ORDER BY is_primary DESC LIMIT 2
 SELECT filepath FROM mediafile WHERE entity_type = 'product' AND entity_id = 1.0 ORDER BY is_primary DESC LIMIT 2
-SELECT * FROM coupons ORDER BY id DESC
-SELECT b.*, u.name as author_name FROM blogs b LEFT JOIN users u ON b.author_id = u.id ORDER BY b.id DESC
-SELECT * FROM career_applications ORDER BY id DESC
-SELECT * FROM notification WHERE user_id = 1.0 ORDER BY id DESC
-SELECT COUNT(*) as count FROM notification WHERE user_id = 1.0 AND is_read = 0
-SELECT * FROM websitesetting
-SELECT * FROM systemsetting
-SELECT * FROM themepreset
-SELECT * FROM themecustomization ORDER BY id DESC LIMIT 1
-SELECT o.*, u.name as customer_name, u.email as customer_email
-                       FROM orders o
-                       JOIN users u ON o.user_id = u.id ORDER BY o.id DESC
-
-          SELECT DISTINCT u.id as customer_id, u.name as customer_name, u.email as customer_email,
-                 (SELECT content FROM message WHERE (sender_id = u.id OR receiver_id = u.id) ORDER BY id DESC LIMIT 1) as last_message,
-                 (SELECT created_at FROM message WHERE (sender_id = u.id OR receiver_id = u.id) ORDER BY id DESC LIMIT 1) as last_message_time,
-                 (SELECT COUNT(*) FROM message WHERE sender_id = u.id AND receiver_id IS NULL AND is_read = 0) as unread_count
-          FROM users u
-          WHERE u.role = 'Customer' AND EXISTS (
-            SELECT 1 FROM message WHERE sender_id = u.id OR receiver_id = u.id
-          )
-          ORDER BY last_message_time DESC
-        
-SELECT * FROM users WHERE id = 1.0
-SELECT COUNT(*) as count FROM notification WHERE user_id = 1.0 AND is_read = 0
-SELECT o.*, u.name as customer_name, u.email as customer_email
-                       FROM orders o
-                       JOIN users u ON o.user_id = u.id ORDER BY o.id DESC
-SELECT id, email, name, phone, role, permissions, gender, how_found, style_pref, category_pref, promotion_tier, is_suspended, suspended_until, created_at FROM users ORDER BY id ASC
-SELECT * FROM products ORDER BY CASE WHEN grid_position IS NULL THEN 999999 ELSE grid_position END ASC, id DESC
-SELECT filepath FROM mediafile WHERE entity_type = 'product' AND entity_id = 3.0 ORDER BY is_primary DESC LIMIT 2
-SELECT filepath FROM mediafile WHERE entity_type = 'product' AND entity_id = 2.0 ORDER BY is_primary DESC LIMIT 2
-SELECT filepath FROM mediafile WHERE entity_type = 'product' AND entity_id = 1.0 ORDER BY is_primary DESC LIMIT 2
-SELECT * FROM coupons ORDER BY id DESC
-SELECT * FROM notification WHERE user_id = 1.0 ORDER BY id DESC
-SELECT COUNT(*) as count FROM notification WHERE user_id = 1.0 AND is_read = 0
-SELECT * FROM websitesetting
-SELECT * FROM systemsetting
-SELECT * FROM themepreset
-SELECT * FROM themecustomization ORDER BY id DESC LIMIT 1
-SELECT b.*, u.name as author_name FROM blogs b LEFT JOIN users u ON b.author_id = u.id ORDER BY b.id DESC
-SELECT * FROM career_applications ORDER BY id DESC
-
-          SELECT DISTINCT u.id as customer_id, u.name as customer_name, u.email as customer_email,
-                 (SELECT content FROM message WHERE (sender_id = u.id OR receiver_id = u.id) ORDER BY id DESC LIMIT 1) as last_message,
-                 (SELECT created_at FROM message WHERE (sender_id = u.id OR receiver_id = u.id) ORDER BY id DESC LIMIT 1) as last_message_time,
-                 (SELECT COUNT(*) FROM message WHERE sender_id = u.id AND receiver_id IS NULL AND is_read = 0) as unread_count
-          FROM users u
-          WHERE u.role = 'Customer' AND EXISTS (
-            SELECT 1 FROM message WHERE sender_id = u.id OR receiver_id = u.id
-          )
-          ORDER BY last_message_time DESC
-        
-SELECT o.*, u.name as customer_name, u.email as customer_email
-                       FROM orders o
-                       JOIN users u ON o.user_id = u.id ORDER BY o.id DESC
+DELETE FROM cart WHERE user_id = 3.0
+SELECT stock, name FROM products WHERE id = 1.0
+SELECT id, quantity FROM cart WHERE user_id = 3.0 AND product_id = 1.0 AND size = 'L' AND color = '#1F1F1F'
+INSERT INTO cart (user_id, product_id, quantity, size, color) VALUES (3.0, 1.0, 1.0, 'L', '#1F1F1F')
+SELECT c.id, c.product_id, c.quantity, c.size, c.color,
+              p.name, p.price, p.stock, p.slug, p.discount_percent,
+              p.discount_active_from, p.discount_active_to
+       FROM cart c
+       JOIN products p ON c.product_id = p.id
+       WHERE c.user_id = 3.0
+SELECT filepath FROM mediafile WHERE entity_type = 'product' AND entity_id = 1.0 AND is_primary = 1 LIMIT 1
+SELECT * FROM coupons WHERE code = 'WELCOME10'
+SELECT COUNT(*) as count FROM coupon_redemptions WHERE coupon_id = 1.0 AND user_id = 3.0
+SELECT c.product_id, c.quantity, p.price, p.category_id
+         FROM cart c
+         JOIN products p ON c.product_id = p.id
+         WHERE c.user_id = 3.0
