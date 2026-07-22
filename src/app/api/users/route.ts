@@ -60,6 +60,63 @@ export async function GET(req: NextRequest) {
   }
 }
 
+// POST: Direct employee/staff creation (Admin only)
+import bcrypt from 'bcryptjs';
+
+export async function POST(req: NextRequest) {
+  try {
+    const caller = getAuthenticatedUser(req);
+    if (!caller) {
+      return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
+    }
+
+    if (caller.role !== 'Admin') {
+      return NextResponse.json({ error: 'Forbidden. Only Super Admins can register staff.' }, { status: 403 });
+    }
+
+    const body = await req.json();
+    const { name, email, password, role, permissions } = body;
+
+    if (!name || !email || !password || !role) {
+      return NextResponse.json({ error: 'Name, email, password, and role are required.' }, { status: 400 });
+    }
+
+    // Check if user already exists
+    const existing = queryOne(`SELECT id FROM users WHERE email = ?`, [email]);
+    if (existing) {
+      return NextResponse.json({ error: 'A user account with this email already exists.' }, { status: 400 });
+    }
+
+    // Hash password
+    const salt = bcrypt.genSaltSync(10);
+    const passwordHash = bcrypt.hashSync(password, salt);
+
+    const stringifiedPerms = JSON.stringify(permissions || []);
+
+    query(
+      `INSERT INTO users (email, password, name, role, permissions) VALUES (?, ?, ?, ?, ?)`,
+      [email, passwordHash, name, role, stringifiedPerms]
+    );
+
+    const newStaff = queryOne(`SELECT id FROM users WHERE email = ?`, [email]);
+
+    // Log the action
+    query(`INSERT INTO activitylog (user_id, action, details) VALUES (?, ?, ?)`, [
+      caller.userId,
+      'Create Employee',
+      `Super admin registered new staff member ${name} (${email}) with role: ${role}`,
+    ]);
+
+    return NextResponse.json({
+      message: 'Employee registered successfully.',
+      employeeId: newStaff.id,
+    });
+  } catch (error) {
+    console.error('Create user/employee error:', error);
+    return NextResponse.json({ error: 'Internal Server Error.' }, { status: 500 });
+  }
+}
+
 // PUT: update user details (customer updating profile, or admin updating customer suspension/tier)
 export async function PUT(req: NextRequest) {
   try {
