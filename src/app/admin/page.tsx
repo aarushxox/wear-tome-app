@@ -13,7 +13,7 @@ import confetti from 'canvas-confetti';
 export default function AdminDashboard() {
   const router = useRouter();
 
-  // Active sub-module view state: 'overview', 'orders', 'users', 'products', 'coupons', 'chat'
+  // Active sub-module view state: 'overview', 'orders', 'users', 'products', 'coupons', 'chat', 'settings'
   const [activeModule, setActiveModule] = useState('overview');
 
   // Database metrics
@@ -54,6 +54,27 @@ export default function AdminDashboard() {
   const [typedMessage, setTypedMessage] = useState('');
   const chatBottomRef = useRef<HTMLDivElement>(null);
 
+  // 4. Settings State
+  const [websiteSettings, setWebsiteSettings] = useState<any>({
+    'site.name': '',
+    'site.tagline': '',
+    'site.primary_color': '',
+    'site.primary_font': '',
+    'site.seo_title': '',
+  });
+  const [systemSettings, setSystemSettings] = useState<any>({
+    'ai_enabled': '0',
+    'voice_enabled': '0',
+    'theme_mode': 'dark',
+  });
+  const [themePresets, setThemePresets] = useState<any[]>([]);
+  const [selectedPresetId, setSelectedPresetId] = useState<any>('');
+  const [oldPassword, setOldPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [passwordChangeMessage, setPasswordChangeMessage] = useState('');
+  const [passwordChangeError, setPasswordChangeError] = useState('');
+  const [saveSettingsMessage, setSaveSettingsMessage] = useState('');
+
   // Detailed drawers
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
   const [selectedOrderItems, setSelectedOrderOrderItems] = useState<any[]>([]);
@@ -82,6 +103,7 @@ export default function AdminDashboard() {
           loadProducts();
           loadCoupons();
           loadChatThreads();
+          loadSettings();
         }
       });
   }, []);
@@ -164,6 +186,23 @@ export default function AdminDashboard() {
           setChatThreads(data.threads);
         }
       });
+  };
+
+  const loadSettings = () => {
+    fetch('/api/settings')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.websitesettings) {
+          setWebsiteSettings(data.websitesettings);
+        }
+        if (data.systemsettings) {
+          setSystemSettings(data.systemsettings);
+        }
+        if (data.themepresets) {
+          setThemePresets(data.themepresets);
+        }
+      })
+      .catch((err) => console.error('Error loading settings:', err));
   };
 
   const handleSelectThread = (threadId: number) => {
@@ -348,6 +387,73 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleSaveSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaveSettingsMessage('');
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          websitesettings: websiteSettings,
+          systemsettings: systemSettings,
+        }),
+      });
+      if (res.ok) {
+        setSaveSettingsMessage('Settings saved successfully!');
+        confetti({ particleCount: 50, spread: 30 });
+        setTimeout(() => setSaveSettingsMessage(''), 4000);
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Failed to save settings.');
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleApplyPreset = (preset: any) => {
+    setSelectedPresetId(preset.id);
+    // Apply preset tokens to current website values
+    setWebsiteSettings((prev: any) => ({
+      ...prev,
+      'site.primary_color': preset.tokens.accentColor || prev['site.primary_color'],
+      'site.primary_font': preset.tokens.fontFamily || prev['site.primary_font'],
+    }));
+  };
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPasswordChangeMessage('');
+    setPasswordChangeError('');
+    if (!oldPassword || !newPassword) {
+      setPasswordChangeError('Both old and new passwords are required.');
+      return;
+    }
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          oldPassword,
+          newPassword,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setPasswordChangeMessage('Password updated successfully!');
+        setOldPassword('');
+        setNewPassword('');
+        confetti({ particleCount: 30, spread: 20 });
+      } else {
+        setPasswordChangeError(data.error || 'Failed to change password.');
+      }
+    } catch (err) {
+      console.error(err);
+      setPasswordChangeError('An error occurred while changing password.');
+    }
+  };
+
   const filteredOrders = orders.filter((o) => {
     const matchesSearch = o.payment_ref?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           o.id.toString().includes(searchQuery) ||
@@ -363,6 +469,7 @@ export default function AdminDashboard() {
     { id: 'products', label: 'PRODUCTS CRUD', icon: Layers },
     { id: 'coupons', label: 'COUPON ENGINE', icon: Ticket },
     { id: 'chat', label: 'SUPPORT CHAT', icon: MessageSquare },
+    { id: 'settings', label: 'SETTINGS', icon: Settings },
   ];
 
   if (!sessionUser) {
@@ -1142,6 +1249,247 @@ export default function AdminDashboard() {
                     <p className="text-xs max-w-xs">Exchanged messages and support query timeline histories will populate here instantly.</p>
                   </div>
                 )}
+              </div>
+
+            </div>
+          )}
+
+          {/* ==================== 7. SETTINGS MODULE VIEW ==================== */}
+          {activeModule === 'settings' && (
+            <div className="space-y-8 animate-fade-in text-xs max-w-4xl">
+              <div className="border-b border-[#2A2A2A] pb-6">
+                <h2 className="font-serif-luxury text-2xl font-bold uppercase text-white">SYSTEM & BRANDING SETTINGS</h2>
+                <p className="text-xs text-[#8A8A8A]">Configure luxury storefront branding assets, system triggers, theme presets, and administrative passwords.</p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                {/* BRANDING FORM */}
+                <form onSubmit={handleSaveSettings} className="bg-[#0A0A0A] border border-[#2A2A2A] rounded-2xl p-6 space-y-6">
+                  <span className="text-xs uppercase tracking-widest text-[#B5B5B5] font-semibold border-b border-[#2A2A2A] pb-2 block">
+                    WEBSITE BRANDING & SEO
+                  </span>
+
+                  <div className="space-y-4">
+                    <div className="space-y-1.5">
+                      <label className="text-[#8A8A8A] font-semibold uppercase block">SITE NAME</label>
+                      <input
+                        type="text"
+                        value={websiteSettings['site.name'] || ''}
+                        onChange={(e) => setWebsiteSettings({ ...websiteSettings, 'site.name': e.target.value })}
+                        className="w-full bg-black border border-[#2A2A2A] rounded-xl px-4 py-3 outline-none text-white focus:border-white transition-all uppercase"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-[#8A8A8A] font-semibold uppercase block">TAGLINE</label>
+                      <input
+                        type="text"
+                        value={websiteSettings['site.tagline'] || ''}
+                        onChange={(e) => setWebsiteSettings({ ...websiteSettings, 'site.tagline': e.target.value })}
+                        className="w-full bg-black border border-[#2A2A2A] rounded-xl px-4 py-3 outline-none text-white focus:border-white transition-all uppercase"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-[#8A8A8A] font-semibold uppercase block">PRIMARY COLOR HEX</label>
+                      <div className="flex space-x-3">
+                        <input
+                          type="text"
+                          value={websiteSettings['site.primary_color'] || ''}
+                          onChange={(e) => setWebsiteSettings({ ...websiteSettings, 'site.primary_color': e.target.value })}
+                          className="w-full bg-black border border-[#2A2A2A] rounded-xl px-4 py-3 outline-none text-white focus:border-white transition-all font-mono"
+                        />
+                        <div
+                          className="w-12 h-12 rounded-xl border border-[#2A2A2A] flex-shrink-0"
+                          style={{ backgroundColor: websiteSettings['site.primary_color'] || '#000000' }}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-[#8A8A8A] font-semibold uppercase block">PRIMARY FONT FAMILY</label>
+                      <select
+                        value={websiteSettings['site.primary_font'] || ''}
+                        onChange={(e) => setWebsiteSettings({ ...websiteSettings, 'site.primary_font': e.target.value })}
+                        className="w-full bg-black border border-[#2A2A2A] rounded-xl px-4 py-3 outline-none text-white focus:border-white transition-all uppercase font-semibold"
+                      >
+                        <option value="Playfair Display">Playfair Display (Serif)</option>
+                        <option value="Inter">Inter (Sans-Serif)</option>
+                        <option value="Poppins">Poppins (Modern)</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-[#8A8A8A] font-semibold uppercase block">SEO META TITLE</label>
+                      <input
+                        type="text"
+                        value={websiteSettings['site.seo_title'] || ''}
+                        onChange={(e) => setWebsiteSettings({ ...websiteSettings, 'site.seo_title': e.target.value })}
+                        className="w-full bg-black border border-[#2A2A2A] rounded-xl px-4 py-3 outline-none text-white focus:border-white transition-all"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="pt-4 border-t border-[#2A2A2A] flex items-center justify-between">
+                    <button
+                      type="submit"
+                      className="bg-[#F8F6F2] hover:bg-white text-black px-6 py-3 rounded-full text-xs font-bold uppercase tracking-widest transition-all"
+                    >
+                      SAVE BRANDING
+                    </button>
+                    {saveSettingsMessage && (
+                      <span className="text-green-500 font-bold uppercase tracking-widest text-[9px]">{saveSettingsMessage}</span>
+                    )}
+                  </div>
+                </form>
+
+                <div className="space-y-8">
+                  {/* SYSTEM TOGGLES */}
+                  <div className="bg-[#0A0A0A] border border-[#2A2A2A] rounded-2xl p-6 space-y-6">
+                    <span className="text-xs uppercase tracking-widest text-[#B5B5B5] font-semibold border-b border-[#2A2A2A] pb-2 block">
+                      SYSTEM FEATURES CONFIGURATION
+                    </span>
+
+                    <div className="space-y-4">
+                      <label className="flex items-center justify-between p-3 bg-black border border-[#2A2A2A] rounded-xl cursor-pointer hover:border-white transition-all">
+                        <div>
+                          <span className="font-bold text-white uppercase block">AI CORE MODULE</span>
+                          <span className="text-[10px] text-[#8A8A8A]">Enable virtual AI stylists and recommendations</span>
+                        </div>
+                        <input
+                          type="checkbox"
+                          checked={systemSettings['ai_enabled'] === '1'}
+                          onChange={(e) => setSystemSettings({ ...systemSettings, 'ai_enabled': e.target.checked ? '1' : '0' })}
+                          className="rounded bg-black border-[#2A2A2A] text-white focus:ring-0 w-4 h-4"
+                        />
+                      </label>
+
+                      <label className="flex items-center justify-between p-3 bg-black border border-[#2A2A2A] rounded-xl cursor-pointer hover:border-white transition-all">
+                        <div>
+                          <span className="font-bold text-white uppercase block">VOICE CORE SUPPORT (Hindi)</span>
+                          <span className="text-[10px] text-[#8A8A8A]">Activate Hindi voice search capabilities</span>
+                        </div>
+                        <input
+                          type="checkbox"
+                          checked={systemSettings['voice_enabled'] === '1'}
+                          onChange={(e) => setSystemSettings({ ...systemSettings, 'voice_enabled': e.target.checked ? '1' : '0' })}
+                          className="rounded bg-black border-[#2A2A2A] text-white focus:ring-0 w-4 h-4"
+                        />
+                      </label>
+
+                      <div className="space-y-1.5">
+                        <label className="text-[#8A8A8A] font-semibold uppercase block">STOREFRONT DEFAULT THEME MODE</label>
+                        <select
+                          value={systemSettings['theme_mode'] || 'dark'}
+                          onChange={(e) => setSystemSettings({ ...systemSettings, 'theme_mode': e.target.value })}
+                          className="w-full bg-black border border-[#2A2A2A] rounded-xl px-4 py-3 outline-none text-white focus:border-white transition-all uppercase font-semibold"
+                        >
+                          <option value="dark">Dark Theme (#000000 base)</option>
+                          <option value="light">Light Theme (#FAFAFA base)</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="pt-4 border-t border-[#2A2A2A]">
+                      <button
+                        onClick={handleSaveSettings}
+                        className="bg-black border border-[#2A2A2A] hover:border-white text-white px-6 py-3 rounded-full text-xs font-bold uppercase tracking-widest transition-all w-full"
+                      >
+                        APPLY SYSTEM SETTINGS
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* ADMIN PASSWORD CHANGE FORM */}
+                  <form onSubmit={handleChangePassword} className="bg-[#0A0A0A] border border-[#2A2A2A] rounded-2xl p-6 space-y-4">
+                    <span className="text-xs uppercase tracking-widest text-[#B5B5B5] font-semibold border-b border-[#2A2A2A] pb-2 block">
+                      CHANGE ADMINISTRATIVE PASSWORD
+                    </span>
+
+                    <div className="space-y-3">
+                      <div className="space-y-1">
+                        <label className="text-[#8A8A8A] font-semibold uppercase block">CURRENT PASSWORD</label>
+                        <input
+                          type="password"
+                          required
+                          value={oldPassword}
+                          onChange={(e) => setOldPassword(e.target.value)}
+                          className="w-full bg-black border border-[#2A2A2A] rounded-xl px-4 py-3 outline-none text-white focus:border-white transition-all font-mono"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[#8A8A8A] font-semibold uppercase block">NEW PASSWORD</label>
+                        <input
+                          type="password"
+                          required
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                          className="w-full bg-black border border-[#2A2A2A] rounded-xl px-4 py-3 outline-none text-white focus:border-white transition-all font-mono"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="pt-3 border-t border-[#2A2A2A] flex items-center justify-between">
+                      <button
+                        type="submit"
+                        className="bg-black border border-[#2A2A2A] hover:border-white text-white px-6 py-3 rounded-full text-xs font-bold uppercase tracking-widest transition-all"
+                      >
+                        UPDATE PASSWORD
+                      </button>
+                      {passwordChangeMessage && (
+                        <span className="text-green-500 font-bold uppercase tracking-widest text-[9px]">{passwordChangeMessage}</span>
+                      )}
+                      {passwordChangeError && (
+                        <span className="text-red-500 font-bold uppercase tracking-widest text-[9px]">{passwordChangeError}</span>
+                      )}
+                    </div>
+                  </form>
+                </div>
+              </div>
+
+              {/* THEME PRESETS SELECTOR */}
+              <div className="bg-[#0A0A0A] border border-[#2A2A2A] rounded-2xl p-6 space-y-6">
+                <span className="text-xs uppercase tracking-widest text-[#B5B5B5] font-semibold border-b border-[#2A2A2A] pb-2 block">
+                  BRAND THEME PRESET TUNER
+                </span>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {themePresets.map((preset) => {
+                    const isSelected = selectedPresetId === preset.id || websiteSettings['site.primary_font'] === preset.tokens.fontFamily;
+                    return (
+                      <div
+                        key={preset.id}
+                        className={`border rounded-2xl p-5 space-y-4 transition-all bg-black ${
+                          isSelected ? 'border-white ring-1 ring-white' : 'border-[#2A2A2A] hover:border-[#525252]'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-white uppercase text-xs">{preset.name}</span>
+                          <span className="text-[10px] text-[#8A8A8A] font-mono">{preset.tokens.fontFamily}</span>
+                        </div>
+
+                        {/* Palette preview bubbles */}
+                        <div className="flex space-x-1.5 pt-1">
+                          <div className="w-5 h-5 rounded-full border border-[#2A2A2A]" style={{ backgroundColor: preset.tokens.primaryBackground }} title="Primary BG" />
+                          <div className="w-5 h-5 rounded-full border border-[#2A2A2A]" style={{ backgroundColor: preset.tokens.cardBackground }} title="Card" />
+                          <div className="w-5 h-5 rounded-full border border-[#2A2A2A]" style={{ backgroundColor: preset.tokens.accentColor }} title="Accent" />
+                        </div>
+
+                        <button
+                          onClick={() => handleApplyPreset(preset)}
+                          className={`w-full py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all ${
+                            isSelected
+                              ? 'bg-white text-black'
+                              : 'bg-black border border-[#2A2A2A] text-[#8A8A8A] hover:text-white hover:border-white'
+                          }`}
+                        >
+                          {isSelected ? 'ACTIVE PRESET' : 'APPLY PRESET'}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
 
             </div>
