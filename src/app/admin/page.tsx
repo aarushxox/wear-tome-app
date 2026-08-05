@@ -63,6 +63,22 @@ export default function AdminDashboard() {
   // Sidebar expanded vs collapsed state
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(true);
 
+  // Settings Module State
+  const [websiteSettings, setWebsiteSettings] = useState<any>({
+    'site.name': '',
+    'site.tagline': '',
+    'site.primary_color': '',
+    'site.primary_font': '',
+    'site.seo_title': '',
+  });
+  const [systemSettings, setSystemSettings] = useState<any>({
+    'ai_enabled': '0',
+    'voice_enabled': '0',
+    'theme_mode': 'dark',
+  });
+  const [themePresets, setThemePresets] = useState<any[]>([]);
+  const [selectedPresetId, setSelectedPresetId] = useState<string>('');
+
   useEffect(() => {
     // Authenticate session and roles (matrix checked)
     fetch('/api/auth/session')
@@ -82,9 +98,53 @@ export default function AdminDashboard() {
           loadProducts();
           loadCoupons();
           loadChatThreads();
+          loadSettings();
         }
       });
   }, []);
+
+  const loadSettings = () => {
+    fetch('/api/settings')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.websitesettings) {
+          setWebsiteSettings(data.websitesettings);
+        }
+        if (data.systemsettings) {
+          setSystemSettings(data.systemsettings);
+        }
+        if (data.themepresets) {
+          setThemePresets(data.themepresets);
+        }
+      });
+  };
+
+  const handleSaveSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          websitesettings: websiteSettings,
+          systemsettings: systemSettings,
+          selected_preset_id: selectedPresetId || undefined,
+        }),
+      });
+
+      if (res.ok) {
+        confetti({ particleCount: 100, spread: 60 });
+        alert('Settings updated successfully!');
+        loadSettings();
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Failed to update settings.');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Error updating settings.');
+    }
+  };
 
   const loadKpis = () => {
     fetch('/api/orders')
@@ -363,6 +423,7 @@ export default function AdminDashboard() {
     { id: 'products', label: 'PRODUCTS CRUD', icon: Layers },
     { id: 'coupons', label: 'COUPON ENGINE', icon: Ticket },
     { id: 'chat', label: 'SUPPORT CHAT', icon: MessageSquare },
+    { id: 'settings', label: 'SETTINGS', icon: Settings },
   ];
 
   if (!sessionUser) {
@@ -1144,6 +1205,160 @@ export default function AdminDashboard() {
                 )}
               </div>
 
+            </div>
+          )}
+
+          {/* ==================== 7. SETTINGS MODULE VIEW ==================== */}
+          {activeModule === 'settings' && (
+            <div className="space-y-6 animate-fade-in text-xs">
+              <div className="border-b border-[#2A2A2A] pb-6">
+                <h2 className="font-serif-luxury text-2xl font-bold uppercase text-white">SYSTEM & BRANDING CONFIGURATION</h2>
+                <p className="text-xs text-[#8A8A8A]">Customize premium e-commerce storefront details, apply luxury preset designs, or toggle voice & AI configurations.</p>
+              </div>
+
+              <form onSubmit={handleSaveSettings} className="space-y-8">
+                {/* 1. Brand Identity Settings Card */}
+                <div className="bg-[#0A0A0A] border border-[#2A2A2A] rounded-2xl p-8 space-y-6">
+                  <span className="text-xs uppercase tracking-widest text-[#B5B5B5] font-semibold border-b border-[#2A2A2A] pb-2 block">
+                    BRAND IDENTITY & SEO CAPABILITIES
+                  </span>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-1.5">
+                      <label className="text-[#8A8A8A] font-semibold uppercase block">STOREFRONT NAME</label>
+                      <input
+                        type="text"
+                        value={websiteSettings['site.name'] || ''}
+                        onChange={(e) => setWebsiteSettings({ ...websiteSettings, 'site.name': e.target.value })}
+                        className="w-full bg-black border border-[#2A2A2A] rounded-xl px-4 py-3 outline-none text-white focus:border-white transition-all uppercase font-semibold"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[#8A8A8A] font-semibold uppercase block">STOREFRONT TAGLINE</label>
+                      <input
+                        type="text"
+                        value={websiteSettings['site.tagline'] || ''}
+                        onChange={(e) => setWebsiteSettings({ ...websiteSettings, 'site.tagline': e.target.value })}
+                        className="w-full bg-black border border-[#2A2A2A] rounded-xl px-4 py-3 outline-none text-white focus:border-white transition-all uppercase"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="space-y-1.5">
+                      <label className="text-[#8A8A8A] font-semibold uppercase block">PRIMARY HIGHLIGHT COLOR</label>
+                      <input
+                        type="text"
+                        value={websiteSettings['site.primary_color'] || ''}
+                        onChange={(e) => setWebsiteSettings({ ...websiteSettings, 'site.primary_color': e.target.value })}
+                        className="w-full bg-black border border-[#2A2A2A] rounded-xl px-4 py-3 outline-none text-white focus:border-white transition-all font-mono"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[#8A8A8A] font-semibold uppercase block">EDITORIAL HEADINGS FONT</label>
+                      <input
+                        type="text"
+                        value={websiteSettings['site.primary_font'] || ''}
+                        onChange={(e) => setWebsiteSettings({ ...websiteSettings, 'site.primary_font': e.target.value })}
+                        className="w-full bg-black border border-[#2A2A2A] rounded-xl px-4 py-3 outline-none text-white focus:border-white transition-all font-serif-luxury"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[#8A8A8A] font-semibold uppercase block">META SEO TITLE</label>
+                      <input
+                        type="text"
+                        value={websiteSettings['site.seo_title'] || ''}
+                        onChange={(e) => setWebsiteSettings({ ...websiteSettings, 'site.seo_title': e.target.value })}
+                        className="w-full bg-black border border-[#2A2A2A] rounded-xl px-4 py-3 outline-none text-white focus:border-white transition-all"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. System Capabilities & Toggles Card */}
+                <div className="bg-[#0A0A0A] border border-[#2A2A2A] rounded-2xl p-8 space-y-6">
+                  <span className="text-xs uppercase tracking-widest text-[#B5B5B5] font-semibold border-b border-[#2A2A2A] pb-2 block">
+                    SYSTEM ENGINES & FEATURES CONFIGURATION
+                  </span>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="space-y-1.5">
+                      <label className="text-[#8A8A8A] font-semibold uppercase block">AI SMART AGENTS</label>
+                      <select
+                        value={systemSettings['ai_enabled'] || '0'}
+                        onChange={(e) => setSystemSettings({ ...systemSettings, 'ai_enabled': e.target.value })}
+                        className="w-full bg-black border border-[#2A2A2A] rounded-xl px-4 py-3 outline-none text-white focus:border-white font-semibold transition-all uppercase"
+                      >
+                        <option value="1">AI CAPABILITIES ENABLED</option>
+                        <option value="0">AI CAPABILITIES DISABLED</option>
+                      </select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[#8A8A8A] font-semibold uppercase block">VOICE CAPABILITY (HINDI / MULTILINGUAL)</label>
+                      <select
+                        value={systemSettings['voice_enabled'] || '0'}
+                        onChange={(e) => setSystemSettings({ ...systemSettings, 'voice_enabled': e.target.value })}
+                        className="w-full bg-black border border-[#2A2A2A] rounded-xl px-4 py-3 outline-none text-white focus:border-white font-semibold transition-all uppercase"
+                      >
+                        <option value="1">VOICE ENGINES ACTIVE</option>
+                        <option value="0">VOICE ENGINES DISABLED</option>
+                      </select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[#8A8A8A] font-semibold uppercase block">DEFAULT INTERFACE THEME</label>
+                      <select
+                        value={systemSettings['theme_mode'] || 'dark'}
+                        onChange={(e) => setSystemSettings({ ...systemSettings, 'theme_mode': e.target.value })}
+                        className="w-full bg-black border border-[#2A2A2A] rounded-xl px-4 py-3 outline-none text-white focus:border-white font-semibold transition-all uppercase"
+                      >
+                        <option value="dark">DARK THEME PRIMACY</option>
+                        <option value="light">LIGHT THEME COMPLIANCE</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3. Luxury Presets Selector */}
+                <div className="bg-[#0A0A0A] border border-[#2A2A2A] rounded-2xl p-8 space-y-6">
+                  <span className="text-xs uppercase tracking-widest text-[#B5B5B5] font-semibold border-b border-[#2A2A2A] pb-2 block">
+                    THEME DESIGN PRESETS & PRE-TOKENIZED CONFIGURATIONS
+                  </span>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {themePresets.map((preset: any) => {
+                      const isSelected = selectedPresetId === preset.id.toString();
+                      return (
+                        <div
+                          key={preset.id}
+                          onClick={() => setSelectedPresetId(preset.id.toString())}
+                          className={`border p-6 rounded-xl cursor-pointer transition-all space-y-3 bg-black ${
+                            isSelected ? 'border-white ring-1 ring-white' : 'border-[#2A2A2A] hover:border-white/50'
+                          }`}
+                        >
+                          <div className="flex justify-between items-center">
+                            <span className="font-serif-luxury font-bold text-sm text-white uppercase">{preset.name}</span>
+                            {isSelected && <Check className="w-4 h-4 text-white" />}
+                          </div>
+                          <div className="text-[10px] space-y-1 text-[#8A8A8A]">
+                            <div>FONT: <span className="text-white uppercase font-mono">{preset.tokens.fontFamily}</span></div>
+                            <div className="flex items-center space-x-1.5">
+                              <span>ACCENT:</span>
+                              <div className="w-3.5 h-3.5 rounded border border-[#2A2A2A]" style={{ backgroundColor: preset.tokens.accentColor }} />
+                              <span className="font-mono text-white">{preset.tokens.accentColor}</span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="flex justify-end">
+                  <button
+                    type="submit"
+                    className="flex items-center space-x-2 bg-[#F8F6F2] hover:bg-white text-black px-8 py-3.5 rounded-full text-xs font-bold uppercase tracking-widest transition-all"
+                  >
+                    <Save className="w-4 h-4" />
+                    <span>SAVE CONFIGURATION SYSTEMS</span>
+                  </button>
+                </div>
+              </form>
             </div>
           )}
 
