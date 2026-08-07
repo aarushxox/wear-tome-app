@@ -1,8 +1,65 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
+import bcrypt from 'bcryptjs';
 import { getAuthenticatedUser } from '@/lib/auth';
 import { query, queryOne } from '@/lib/db';
+
+// POST: create team and employee accounts directly (Admin only)
+export async function POST(req: NextRequest) {
+  try {
+    const caller = getAuthenticatedUser(req);
+    if (!caller) {
+      return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
+    }
+
+    if (caller.role !== 'Admin') {
+      return NextResponse.json({ error: 'Forbidden. Only Super Admins can directly create employee accounts.' }, { status: 403 });
+    }
+
+    const body = await req.json();
+    const { email, password, name, role, permissions } = body;
+
+    if (!email || !password || !name || !role) {
+      return NextResponse.json({ error: 'Email, password, name, and role are required.' }, { status: 400 });
+    }
+
+    const existingUser = queryOne(`SELECT id FROM users WHERE email = ?`, [email]);
+    if (existingUser) {
+      return NextResponse.json({ error: 'An account with this email is already registered.' }, { status: 400 });
+    }
+
+    const salt = bcrypt.genSaltSync(10);
+    const hashedPassword = bcrypt.hashSync(password, salt);
+
+    query(
+      `INSERT INTO users (email, password, name, role, permissions) VALUES (?, ?, ?, ?, ?)`,
+      [
+        email,
+        hashedPassword,
+        name,
+        role,
+        JSON.stringify(permissions || []),
+      ]
+    );
+
+    const newEmployee = queryOne(`SELECT id FROM users WHERE email = ?`, [email]);
+
+    query(`INSERT INTO activitylog (user_id, action, details) VALUES (?, ?, ?)`, [
+      caller.userId,
+      'Create Employee',
+      `Super admin created new staff account for ${name} (${email}) with role: ${role}`,
+    ]);
+
+    return NextResponse.json({
+      message: 'Employee account created successfully.',
+      employeeId: newEmployee?.id,
+    });
+  } catch (error: any) {
+    console.error('Create user error:', error);
+    return NextResponse.json({ error: 'Internal Server Error.' }, { status: 500 });
+  }
+}
 
 // GET: list users (staff) or get own profile (customer)
 export async function GET(req: NextRequest) {
