@@ -13,7 +13,7 @@ import confetti from 'canvas-confetti';
 export default function AdminDashboard() {
   const router = useRouter();
 
-  // Active sub-module view state: 'overview', 'orders', 'users', 'products', 'coupons', 'chat'
+  // Active sub-module view state: 'overview', 'orders', 'users', 'products', 'coupons', 'chat', 'notifications', 'settings'
   const [activeModule, setActiveModule] = useState('overview');
 
   // Database metrics
@@ -54,6 +54,49 @@ export default function AdminDashboard() {
   const [typedMessage, setTypedMessage] = useState('');
   const chatBottomRef = useRef<HTMLDivElement>(null);
 
+  // 4. Settings & Notifications States
+  const [websiteSettings, setWebsiteSettings] = useState<any>({
+    'site.name': 'Wear Tome',
+    'site.tagline': 'Luxury Streetwear Editorial',
+    'site.primary_color': '#0A0A0A',
+    'site.primary_font': 'Playfair Display',
+    'site.seo_title': 'Wear Tome — High-End Luxury Streetwear Storefront',
+  });
+  const [systemSettings, setSystemSettings] = useState<any>({
+    'ai_enabled': '1',
+    'voice_enabled': '1',
+    'theme_mode': 'dark',
+  });
+  const [themePresets, setThemePresets] = useState<any[]>([]);
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [unreadCount, setUnreadCount] = useState<number>(0);
+
+  // 5. Blogs & Careers States
+  const [blogs, setBlogs] = useState<any[]>([]);
+  const [showBlogForm, setShowBlogForm] = useState(false);
+  const [blogForm, setBlogForm] = useState({
+    title: '',
+    content: '',
+    category: 'Design',
+    is_published: false,
+  });
+  const [careers, setCareers] = useState<any[]>([]);
+  const [convertingApplicant, setConvertingApplicant] = useState<any>(null);
+  const [conversionForm, setConversionForm] = useState({
+    employeeRole: 'Sub-admin',
+    employeePassword: '',
+  });
+
+  // 6. Employees State
+  const [showEmployeeForm, setShowEmployeeForm] = useState(false);
+  const [empForm, setEmpForm] = useState({
+    name: '',
+    email: '',
+    password: '',
+    role: 'Manager',
+    permissions: '[]',
+  });
+
   // Detailed drawers
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
   const [selectedOrderItems, setSelectedOrderOrderItems] = useState<any[]>([]);
@@ -82,6 +125,10 @@ export default function AdminDashboard() {
           loadProducts();
           loadCoupons();
           loadChatThreads();
+          loadSettings();
+          loadNotifications();
+          loadBlogs();
+          loadCareers();
         }
       });
   }, []);
@@ -116,6 +163,226 @@ export default function AdminDashboard() {
           setOrders(data.orders);
         }
       });
+  };
+
+  const loadSettings = () => {
+    fetch('/api/settings')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.websiteSettings) setWebsiteSettings(data.websiteSettings);
+        if (data.systemSettings) setSystemSettings(data.systemSettings);
+        if (data.themePresets) setThemePresets(data.themePresets);
+      })
+      .catch((err) => console.error('Error loading settings:', err));
+  };
+
+  const loadNotifications = () => {
+    fetch('/api/notifications')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.notifications) setNotifications(data.notifications);
+        if (data.unreadCount !== undefined) setUnreadCount(data.unreadCount);
+      })
+      .catch((err) => console.error('Error loading notifications:', err));
+  };
+
+  const handleMarkNotificationRead = async (id: number) => {
+    try {
+      const res = await fetch('/api/notifications', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      });
+      if (res.ok) {
+        loadNotifications();
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleCreateEmployee = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const res = await fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: empForm.email,
+          password: empForm.password,
+          name: empForm.name,
+          role: empForm.role,
+          permissions: JSON.parse(empForm.permissions || '[]'),
+        }),
+      });
+      if (res.ok) {
+        setShowEmployeeForm(false);
+        setEmpForm({ name: '', email: '', password: '', role: 'Manager', permissions: '[]' });
+        loadUsers();
+        alert('Employee created successfully!');
+        confetti({ particleCount: 50, spread: 45 });
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Failed to create employee account.');
+      }
+    } catch (err) {
+      alert('Permissions field must be a valid JSON array of strings!');
+    }
+  };
+
+  const handleDeleteEmployee = async (id: number) => {
+    if (!confirm('Are you sure you want to permanently delete this employee account?')) return;
+    try {
+      const res = await fetch(`/api/users?id=${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        loadUsers();
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Failed to delete employee account.');
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const loadBlogs = () => {
+    fetch('/api/blogs')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.blogs) setBlogs(data.blogs);
+      })
+      .catch((err) => console.error('Error loading blogs:', err));
+  };
+
+  const loadCareers = () => {
+    fetch('/api/careers')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.applications) setCareers(data.applications);
+      })
+      .catch((err) => console.error('Error loading careers:', err));
+  };
+
+  const handleCreateBlog = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const res = await fetch('/api/blogs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(blogForm),
+      });
+      if (res.ok) {
+        setShowBlogForm(false);
+        setBlogForm({ title: '', content: '', category: 'Design', is_published: false });
+        loadBlogs();
+        confetti({ particleCount: 50, spread: 45 });
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Failed to create blog post.');
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleDeleteBlog = async (id: number) => {
+    if (!confirm('Are you sure you want to permanently delete this publication?')) return;
+    try {
+      const res = await fetch(`/api/blogs?id=${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        loadBlogs();
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Failed to delete blog post.');
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleConvertApplicant = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!convertingApplicant) return;
+    try {
+      const res = await fetch('/api/careers', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: convertingApplicant.id,
+          convertToEmployee: true,
+          employeeRole: conversionForm.employeeRole,
+          employeePassword: conversionForm.employeePassword,
+        }),
+      });
+      if (res.ok) {
+        alert('Applicant converted to Employee successfully!');
+        setConvertingApplicant(null);
+        setConversionForm({ employeeRole: 'Sub-admin', employeePassword: '' });
+        loadCareers();
+        loadUsers(); // Refresh users list
+        confetti({ particleCount: 100, spread: 60 });
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Failed to convert applicant.');
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleRejectApplicant = async (id: number) => {
+    if (!confirm('Are you sure you want to reject this applicant?')) return;
+    try {
+      const res = await fetch('/api/careers', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, status: 'Rejected' }),
+      });
+      if (res.ok) {
+        loadCareers();
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Failed to reject applicant.');
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleMarkAllNotificationsRead = async () => {
+    try {
+      const res = await fetch('/api/notifications', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ markAll: true }),
+      });
+      if (res.ok) {
+        loadNotifications();
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleSaveSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ websiteSettings, systemSettings }),
+      });
+      if (res.ok) {
+        alert('Settings updated successfully!');
+        loadSettings();
+        confetti({ particleCount: 50, spread: 45 });
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Failed to update settings.');
+      }
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   const loadUsers = () => {
@@ -363,6 +630,12 @@ export default function AdminDashboard() {
     { id: 'products', label: 'PRODUCTS CRUD', icon: Layers },
     { id: 'coupons', label: 'COUPON ENGINE', icon: Ticket },
     { id: 'chat', label: 'SUPPORT CHAT', icon: MessageSquare },
+    { id: 'employees', label: 'EMPLOYEES & TEAM', icon: Percent },
+    { id: 'revenue', label: 'REVENUE & MARGINS', icon: Activity },
+    { id: 'blogs', label: 'PUBLICATIONS', icon: FileText },
+    { id: 'careers', label: 'CAREERS', icon: ShieldAlert },
+    { id: 'notifications', label: 'NOTIFICATIONS', icon: Bell },
+    { id: 'settings', label: 'SETTINGS', icon: Settings },
   ];
 
   if (!sessionUser) {
@@ -401,14 +674,21 @@ export default function AdminDashboard() {
                 <button
                   key={item.id}
                   onClick={() => setActiveModule(item.id)}
-                  className={`w-full flex items-center space-x-3.5 px-4 py-3.5 rounded-xl text-xs font-semibold uppercase tracking-widest transition-all ${
+                  className={`w-full flex items-center justify-between px-4 py-3.5 rounded-xl text-xs font-semibold uppercase tracking-widest transition-all ${
                     isSel
                       ? 'bg-[#F8F6F2] text-black font-bold'
                       : 'text-[#8A8A8A] hover:text-white hover:bg-[#111111]'
                   }`}
                 >
-                  <Icon className="w-4 h-4 flex-shrink-0" />
-                  <span className={isSidebarExpanded ? 'inline' : 'hidden'}>{item.label}</span>
+                  <div className="flex items-center space-x-3.5">
+                    <Icon className="w-4 h-4 flex-shrink-0" />
+                    <span className={isSidebarExpanded ? 'inline' : 'hidden'}>{item.label}</span>
+                  </div>
+                  {item.id === 'notifications' && unreadCount > 0 && isSidebarExpanded && (
+                    <span className="bg-red-500 text-white text-[9px] font-extrabold px-1.5 py-0.5 rounded-full leading-none">
+                      {unreadCount > 9 ? '9+' : unreadCount}
+                    </span>
+                  )}
                 </button>
               );
             })}
@@ -1144,6 +1424,667 @@ export default function AdminDashboard() {
                 )}
               </div>
 
+            </div>
+          )}
+
+          {/* ==================== 7. NOTIFICATIONS VIEW ==================== */}
+          {activeModule === 'notifications' && (
+            <div className="space-y-6 animate-fade-in text-xs">
+              <div className="flex justify-between items-center border-b border-[#2A2A2A] pb-6">
+                <div>
+                  <h2 className="font-serif-luxury text-2xl font-bold uppercase text-white">SYSTEM NOTIFICATIONS</h2>
+                  <p className="text-xs text-[#8A8A8A]">Monitor trigger warnings, chat alerts, and low stock status events.</p>
+                </div>
+                {unreadCount > 0 && (
+                  <button
+                    onClick={handleMarkAllNotificationsRead}
+                    className="bg-[#F8F6F2] hover:bg-white text-black font-bold uppercase px-4 py-2.5 rounded-full transition-all text-[10px]"
+                  >
+                    MARK ALL AS READ
+                  </button>
+                )}
+              </div>
+
+              {notifications.length === 0 ? (
+                <div className="py-20 text-center text-xs text-[#8A8A8A] uppercase bg-[#0A0A0A] border border-[#2A2A2A] rounded-2xl">
+                  Your notification inbox is currently empty.
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {notifications.map((notif) => (
+                    <div
+                      key={notif.id}
+                      className={`p-6 border rounded-2xl flex justify-between items-start transition-all bg-[#0A0A0A] ${
+                        notif.is_read ? 'border-[#2A2A2A] opacity-60' : 'border-white'
+                      }`}
+                    >
+                      <div className="space-y-1">
+                        <span className="font-bold text-white uppercase text-xs block">{notif.title}</span>
+                        <p className="text-[#B5B5B5] leading-relaxed text-xs">{notif.message}</p>
+                        <span className="text-[10px] text-[#525252] font-mono block pt-1">{notif.created_at}</span>
+                      </div>
+                      {!notif.is_read && (
+                        <button
+                          onClick={() => handleMarkNotificationRead(notif.id)}
+                          className="text-[10px] uppercase tracking-widest font-bold border border-[#2A2A2A] rounded-full px-4 py-2 hover:border-white transition-all bg-black"
+                        >
+                          MARK AS READ
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ==================== 8. SETTINGS VIEW ==================== */}
+          {activeModule === 'settings' && (
+            <form onSubmit={handleSaveSettings} className="space-y-8 animate-fade-in text-xs">
+              <div className="flex justify-between items-center border-b border-[#2A2A2A] pb-6">
+                <div>
+                  <h2 className="font-serif-luxury text-2xl font-bold uppercase text-white">SYSTEM SETTINGS CONTROL</h2>
+                  <p className="text-xs text-[#8A8A8A]">Modify brand identity, active design presets, and core toggles.</p>
+                </div>
+                <button
+                  type="submit"
+                  className="bg-[#F8F6F2] hover:bg-white text-black font-bold uppercase px-5 py-3 rounded-full transition-all text-xs flex items-center space-x-2"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>SAVE SYSTEM PARAMETERS</span>
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                {/* Brand Settings Card */}
+                <div className="bg-[#0A0A0A] border border-[#2A2A2A] rounded-2xl p-8 space-y-6">
+                  <span className="text-xs font-bold uppercase tracking-widest text-[#B5B5B5] border-b border-[#2A2A2A] pb-2 block">
+                    BRAND IDENTITY DETAILS
+                  </span>
+
+                  <div className="space-y-4">
+                    <div className="space-y-1.5">
+                      <label className="text-[#8A8A8A] font-semibold uppercase block">STOREFRONT BRAND NAME</label>
+                      <input
+                        type="text"
+                        value={websiteSettings['site.name'] || ''}
+                        onChange={(e) => setWebsiteSettings({ ...websiteSettings, 'site.name': e.target.value })}
+                        className="w-full bg-black border border-[#2A2A2A] rounded-xl px-4 py-3 outline-none text-white focus:border-white transition-all"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-[#8A8A8A] font-semibold uppercase block">BRAND TAGLINE</label>
+                      <input
+                        type="text"
+                        value={websiteSettings['site.tagline'] || ''}
+                        onChange={(e) => setWebsiteSettings({ ...websiteSettings, 'site.tagline': e.target.value })}
+                        className="w-full bg-black border border-[#2A2A2A] rounded-xl px-4 py-3 outline-none text-white focus:border-white transition-all"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-[#8A8A8A] font-semibold uppercase block">SEO META TITLE</label>
+                      <input
+                        type="text"
+                        value={websiteSettings['site.seo_title'] || ''}
+                        onChange={(e) => setWebsiteSettings({ ...websiteSettings, 'site.seo_title': e.target.value })}
+                        className="w-full bg-black border border-[#2A2A2A] rounded-xl px-4 py-3 outline-none text-white focus:border-white transition-all"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* System Toggles Card */}
+                <div className="bg-[#0A0A0A] border border-[#2A2A2A] rounded-2xl p-8 space-y-6">
+                  <span className="text-xs font-bold uppercase tracking-widest text-[#B5B5B5] border-b border-[#2A2A2A] pb-2 block">
+                    CORE SYSTEM ENGINES
+                  </span>
+
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between p-4 bg-black border border-[#2A2A2A] rounded-xl">
+                      <div>
+                        <span className="font-bold text-white uppercase block">AI FEATURES INTEGRATION</span>
+                        <span className="text-[10px] text-[#8A8A8A]">Enable automated copy generation and smart curation.</span>
+                      </div>
+                      <select
+                        value={systemSettings['ai_enabled'] || '0'}
+                        onChange={(e) => setSystemSettings({ ...systemSettings, 'ai_enabled': e.target.value })}
+                        className="bg-[#0A0A0A] border border-[#2A2A2A] rounded px-3 py-1.5 outline-none text-white text-[10px] font-bold uppercase"
+                      >
+                        <option value="1">ENABLED</option>
+                        <option value="0">DISABLED</option>
+                      </select>
+                    </div>
+
+                    <div className="flex items-center justify-between p-4 bg-black border border-[#2A2A2A] rounded-xl">
+                      <div>
+                        <span className="font-bold text-white uppercase block">VOICE ENGINE SUPPORT (HINDI)</span>
+                        <span className="text-[10px] text-[#8A8A8A]">Activate multilingual vocal synthesis features.</span>
+                      </div>
+                      <select
+                        value={systemSettings['voice_enabled'] || '0'}
+                        onChange={(e) => setSystemSettings({ ...systemSettings, 'voice_enabled': e.target.value })}
+                        className="bg-[#0A0A0A] border border-[#2A2A2A] rounded px-3 py-1.5 outline-none text-white text-[10px] font-bold uppercase"
+                      >
+                        <option value="1">ENABLED</option>
+                        <option value="0">DISABLED</option>
+                      </select>
+                    </div>
+
+                    <div className="flex items-center justify-between p-4 bg-black border border-[#2A2A2A] rounded-xl">
+                      <div>
+                        <span className="font-bold text-white uppercase block">THEME MODE PREFERENCE</span>
+                        <span className="text-[10px] text-[#8A8A8A]">Configure the brand's default interface lighting mode.</span>
+                      </div>
+                      <select
+                        value={systemSettings['theme_mode'] || 'dark'}
+                        onChange={(e) => setSystemSettings({ ...systemSettings, 'theme_mode': e.target.value })}
+                        className="bg-[#0A0A0A] border border-[#2A2A2A] rounded px-3 py-1.5 outline-none text-white text-[10px] font-bold uppercase"
+                      >
+                        <option value="dark">DARK MODE</option>
+                        <option value="light">LIGHT MODE</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Theme Preset Selection Card */}
+              <div className="bg-[#0A0A0A] border border-[#2A2A2A] rounded-2xl p-8 space-y-6">
+                <span className="text-xs font-bold uppercase tracking-widest text-[#B5B5B5] border-b border-[#2A2A2A] pb-2 block">
+                  BRAND DESIGN PRESETS & TOKENS
+                </span>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {themePresets.map((preset) => {
+                    const isSelected = websiteSettings['site.primary_font'] === preset.tokens.fontFamily;
+                    return (
+                      <div
+                        key={preset.id}
+                        onClick={() => {
+                          setWebsiteSettings({
+                            ...websiteSettings,
+                            'site.primary_color': preset.tokens.primaryBackground,
+                            'site.primary_font': preset.tokens.fontFamily,
+                          });
+                        }}
+                        className={`p-6 border rounded-xl cursor-pointer transition-all space-y-4 bg-black ${
+                          isSelected ? 'border-white ring-1 ring-white' : 'border-[#2A2A2A] hover:border-white'
+                        }`}
+                      >
+                        <div className="flex justify-between items-center">
+                          <span className="font-bold text-white uppercase block text-xs">{preset.name}</span>
+                          {isSelected && <Check className="w-4 h-4 text-white" />}
+                        </div>
+                        <div className="grid grid-cols-3 gap-2 text-[9px] text-[#8A8A8A] font-mono">
+                          <div>
+                            <span className="block text-[8px] text-[#525252]">FONT</span>
+                            <span className="text-white truncate block">{preset.tokens.fontFamily}</span>
+                          </div>
+                          <div>
+                            <span className="block text-[8px] text-[#525252]">ACCENT</span>
+                            <span className="block w-4 h-4 rounded border border-[#2A2A2A]" style={{ backgroundColor: preset.tokens.accentColor }} />
+                          </div>
+                          <div>
+                            <span className="block text-[8px] text-[#525252]">BG</span>
+                            <span className="block w-4 h-4 rounded border border-[#2A2A2A]" style={{ backgroundColor: preset.tokens.primaryBackground }} />
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </form>
+          )}
+
+          {/* ==================== 9. PUBLICATIONS/BLOG VIEW ==================== */}
+          {activeModule === 'blogs' && (
+            <div className="space-y-6 animate-fade-in text-xs">
+              <div className="flex items-center justify-between border-b border-[#2A2A2A] pb-6">
+                <div>
+                  <h2 className="font-serif-luxury text-2xl font-bold uppercase text-white">EDITORIAL PUBLICATIONS</h2>
+                  <p className="text-xs text-[#8A8A8A]">Create, edit, publish, or retract brand journal stories and blog posts.</p>
+                </div>
+                <button
+                  onClick={() => setShowBlogForm(!showBlogForm)}
+                  className="flex items-center space-x-2 bg-[#F8F6F2] hover:bg-white text-black text-xs font-bold uppercase px-5 py-3 rounded-full transition-all"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>NEW JOURNAL POST</span>
+                </button>
+              </div>
+
+              {showBlogForm && (
+                <form onSubmit={handleCreateBlog} className="bg-[#0A0A0A] border border-[#2A2A2A] rounded-2xl p-8 space-y-6 text-xs">
+                  <span className="text-xs uppercase tracking-widest text-[#B5B5B5] font-semibold border-b border-[#2A2A2A] pb-2 block">
+                    CREATE JOURNAL PUBLICATION
+                  </span>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-1.5">
+                      <label className="text-[#8A8A8A] font-semibold uppercase block">ARTICLE TITLE</label>
+                      <input
+                        type="text" required placeholder="e.g. THE ARCHITECTURE OF MODERN SILK"
+                        value={blogForm.title} onChange={(e) => setBlogForm({...blogForm, title: e.target.value})}
+                        className="w-full bg-black border border-[#2A2A2A] rounded-xl px-4 py-3 outline-none text-white focus:border-white transition-all uppercase"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[#8A8A8A] font-semibold uppercase block">CATEGORY TAG</label>
+                      <select
+                        value={blogForm.category} onChange={(e) => setBlogForm({...blogForm, category: e.target.value})}
+                        className="w-full bg-black border border-[#2A2A2A] rounded-xl px-4 py-3 outline-none text-white focus:border-white transition-all uppercase font-semibold"
+                      >
+                        <option value="Design">Design</option>
+                        <option value="Marketing">Marketing</option>
+                        <option value="Operations">Operations</option>
+                        <option value="Culture">Culture</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[#8A8A8A] font-semibold uppercase block">ARTICLE CONTENT (MARKDOWN OR PLAIN TEXT)</label>
+                    <textarea
+                      required rows={8} placeholder="Draft your luxury publication article body details here..."
+                      value={blogForm.content} onChange={(e) => setBlogForm({...blogForm, content: e.target.value})}
+                      className="w-full bg-black border border-[#2A2A2A] rounded-xl px-4 py-3 outline-none text-white focus:border-white transition-all leading-relaxed"
+                    />
+                  </div>
+
+                  <div className="flex items-center space-x-6">
+                    <label className="flex items-center space-x-2.5 cursor-pointer">
+                      <input
+                        type="checkbox" checked={blogForm.is_published} onChange={(e) => setBlogForm({...blogForm, is_published: e.target.checked})}
+                        className="rounded bg-black border-[#2A2A2A] text-white focus:ring-0 w-4 h-4"
+                      />
+                      <span className="font-semibold uppercase text-white">PUBLISH ARTICLE IMMEDIATELY</span>
+                    </label>
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="bg-[#F8F6F2] hover:bg-white text-black px-8 py-3.5 rounded-full text-xs font-bold uppercase tracking-widest transition-all"
+                  >
+                    SAVE & REGISTER PUBLICATION
+                  </button>
+                </form>
+              )}
+
+              {blogs.length === 0 ? (
+                <div className="py-20 text-center text-xs text-[#8A8A8A] uppercase bg-[#0A0A0A] border border-[#2A2A2A] rounded-2xl">
+                  No editorial publications found.
+                </div>
+              ) : (
+                <div className="bg-[#0A0A0A] border border-[#2A2A2A] rounded-2xl overflow-hidden">
+                  <table className="w-full text-left text-xs text-[#B5B5B5]">
+                    <thead className="bg-black text-[#8A8A8A] uppercase font-semibold border-b border-[#2A2A2A]">
+                      <tr>
+                        <th className="p-5">ARTICLE</th>
+                        <th className="p-5">CATEGORY</th>
+                        <th className="p-5">AUTHOR ID</th>
+                        <th className="p-5">STATUS</th>
+                        <th className="p-5 text-right">ACTIONS</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#2A2A2A]">
+                      {blogs.map((blog) => (
+                        <tr key={blog.id} className="hover:bg-[#111111]/30 transition-colors">
+                          <td className="p-5">
+                            <span className="font-bold text-white block uppercase">{blog.title}</span>
+                            <span className="text-[10px] text-[#8A8A8A] font-mono block mt-0.5">/{blog.slug}</span>
+                          </td>
+                          <td className="p-5 uppercase font-medium">{blog.category}</td>
+                          <td className="p-5 font-mono">ID: {blog.author_id || 'System'}</td>
+                          <td className="p-5">
+                            <span className={`inline-block font-semibold px-2 py-0.5 rounded text-[8px] uppercase tracking-widest ${
+                              blog.is_published ? 'bg-green-500/10 border border-green-500/30 text-green-500' : 'bg-amber-500/10 border border-amber-500/30 text-amber-500'
+                            }`}>
+                              {blog.is_published ? 'PUBLISHED' : 'DRAFT'}
+                            </span>
+                          </td>
+                          <td className="p-5 text-right">
+                            <button
+                              onClick={() => handleDeleteBlog(blog.id)}
+                              className="text-red-500 hover:underline text-[10px] font-bold uppercase tracking-widest bg-black border border-[#2A2A2A] rounded-full px-4 py-2 hover:border-red-500 transition-all"
+                            >
+                              DELETE
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ==================== 10. CAREER APPLICATIONS VIEW ==================== */}
+          {activeModule === 'careers' && (
+            <div className="space-y-6 animate-fade-in text-xs">
+              <div className="border-b border-[#2A2A2A] pb-6">
+                <h2 className="font-serif-luxury text-2xl font-bold uppercase text-white">CAREER APPLICATIONS INBOX</h2>
+                <p className="text-xs text-[#8A8A8A]">Review incoming talent applications, and convert successful applicants into Employees.</p>
+              </div>
+
+              {careers.length === 0 ? (
+                <div className="py-20 text-center text-xs text-[#8A8A8A] uppercase bg-[#0A0A0A] border border-[#2A2A2A] rounded-2xl">
+                  No job applications have been submitted yet.
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {careers.map((app) => (
+                    <div key={app.id} className="bg-[#0A0A0A] border border-[#2A2A2A] rounded-2xl p-8 space-y-4">
+                      <div className="flex justify-between items-start border-b border-[#2A2A2A] pb-4">
+                        <div>
+                          <span className="text-[10px] text-[#8A8A8A] uppercase tracking-wider block">APPLICANT DOSSIER</span>
+                          <span className="text-lg font-bold text-white uppercase block mt-0.5">{app.name}</span>
+                          <span className="text-xs text-[#8A8A8A] block">{app.email} &middot; {app.phone || 'NO PHONE'}</span>
+                        </div>
+                        <span className={`inline-block font-semibold px-2.5 py-1 rounded text-[10px] uppercase tracking-widest ${
+                          app.status === 'Approved' ? 'bg-green-500/10 border border-green-500/30 text-green-500' :
+                          app.status === 'Rejected' ? 'bg-red-500/10 border border-red-500/30 text-red-500' :
+                          'bg-amber-500/10 border border-amber-500/30 text-amber-500'
+                        }`}>
+                          {app.status}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-[#B5B5B5]">
+                        <div className="space-y-1">
+                          <span className="font-bold text-white uppercase block">ROLE INTERESTED IN:</span>
+                          <p className="uppercase">{app.role_interest}</p>
+                        </div>
+                        {app.resume_link && (
+                          <div className="space-y-1">
+                            <span className="font-bold text-white block">PORTFOLIO / RESUME DOCUMENT:</span>
+                            <a href={app.resume_link} target="_blank" rel="noreferrer" className="text-white underline font-mono break-all block">
+                              {app.resume_link}
+                            </a>
+                          </div>
+                        )}
+                      </div>
+
+                      {app.cover_letter && (
+                        <div className="bg-black p-4 border border-[#2A2A2A] rounded-xl space-y-1.5 text-[#B5B5B5]">
+                          <span className="font-bold text-white block uppercase">COVER LETTER / MESSAGE:</span>
+                          <p className="leading-relaxed whitespace-pre-wrap">{app.cover_letter}</p>
+                        </div>
+                      )}
+
+                      {app.status === 'Pending' && (
+                        <div className="flex space-x-3 pt-2">
+                          <button
+                            onClick={() => setConvertingApplicant(app)}
+                            className="bg-white text-black font-bold uppercase px-5 py-2.5 rounded-full text-[10px] tracking-widest hover:bg-[#F8F6F2] transition-all"
+                          >
+                            CONVERT TO TEAM MEMBER
+                          </button>
+                          <button
+                            onClick={() => handleRejectApplicant(app.id)}
+                            className="bg-black text-red-500 border border-[#2A2A2A] font-bold uppercase px-5 py-2.5 rounded-full text-[10px] tracking-widest hover:border-red-500 transition-all"
+                          >
+                            REJECT APPLICANT
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Convert Applicant Dialog Modal */}
+              {convertingApplicant && (
+                <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
+                  <form onSubmit={handleConvertApplicant} className="bg-[#0A0A0A] border border-[#2A2A2A] rounded-2xl p-8 max-w-md w-full space-y-6">
+                    <div className="flex justify-between items-center border-b border-[#2A2A2A] pb-3">
+                      <span className="font-serif-luxury font-bold text-lg uppercase text-white">CONVERT TO STAFF</span>
+                      <button type="button" onClick={() => setConvertingApplicant(null)} className="text-[#8A8A8A] hover:text-white border border-[#2A2A2A] rounded-full p-1 bg-black">
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    <p className="text-xs text-[#8A8A8A] leading-relaxed">
+                      You are establishing a corporate user account for <span className="text-white font-bold">{convertingApplicant.name}</span> ({convertingApplicant.email}). Select their role and temporary credentials.
+                    </p>
+
+                    <div className="space-y-4">
+                      <div className="space-y-1.5">
+                        <label className="text-[#8A8A8A] font-semibold uppercase block">STAFF AUTHORITY ROLE</label>
+                        <select
+                          value={conversionForm.employeeRole}
+                          onChange={(e) => setConversionForm({ ...conversionForm, employeeRole: e.target.value })}
+                          className="w-full bg-black border border-[#2A2A2A] rounded-xl px-4 py-3 outline-none text-white focus:border-white transition-all uppercase font-semibold"
+                        >
+                          <option value="Sub-admin">Sub-admin</option>
+                          <option value="Manager">Manager</option>
+                          <option value="Employee">Employee/Staff</option>
+                          <option value="Customer Care">Customer Care</option>
+                        </select>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="text-[#8A8A8A] font-semibold uppercase block">TEMPORARY PASSWORD</label>
+                        <input
+                          type="password" required placeholder="Min 6 characters"
+                          value={conversionForm.employeePassword}
+                          onChange={(e) => setConversionForm({ ...conversionForm, employeePassword: e.target.value })}
+                          className="w-full bg-black border border-[#2A2A2A] rounded-xl px-4 py-3 outline-none text-white focus:border-white transition-all"
+                        />
+                      </div>
+                    </div>
+
+                    <button
+                      type="submit"
+                      className="w-full bg-white text-black font-bold uppercase px-6 py-3.5 rounded-full text-xs tracking-widest hover:bg-[#F8F6F2] transition-all"
+                    >
+                      APPROVE & CREATE STAFF PROFILE
+                    </button>
+                  </form>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ==================== 11. EMPLOYEES & TEAM VIEW ==================== */}
+          {activeModule === 'employees' && (
+            <div className="space-y-6 animate-fade-in text-xs">
+              <div className="flex items-center justify-between border-b border-[#2A2A2A] pb-6">
+                <div>
+                  <h2 className="font-serif-luxury text-2xl font-bold uppercase text-white">EMPLOYEE DIRECTORY CONTROL</h2>
+                  <p className="text-xs text-[#8A8A8A]">Manage staff authority clearances, permission overrides, or add new employees.</p>
+                </div>
+                <button
+                  onClick={() => setShowEmployeeForm(!showEmployeeForm)}
+                  className="flex items-center space-x-2 bg-[#F8F6F2] hover:bg-white text-black text-xs font-bold uppercase px-5 py-3 rounded-full transition-all"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>ADD NEW EMPLOYEE</span>
+                </button>
+              </div>
+
+              {showEmployeeForm && (
+                <form onSubmit={handleCreateEmployee} className="bg-[#0A0A0A] border border-[#2A2A2A] rounded-2xl p-8 space-y-6">
+                  <span className="text-xs uppercase tracking-widest text-[#B5B5B5] font-semibold border-b border-[#2A2A2A] pb-2 block">
+                    REGISTER CORPORATE TEAM MEMBER
+                  </span>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="space-y-1.5">
+                      <label className="text-[#8A8A8A] font-semibold uppercase block">FULL NAME</label>
+                      <input
+                        type="text" required placeholder="e.g. MARCUS AURELIUS"
+                        value={empForm.name} onChange={(e) => setEmpForm({...empForm, name: e.target.value})}
+                        className="w-full bg-black border border-[#2A2A2A] rounded-xl px-4 py-3 outline-none text-white focus:border-white transition-all uppercase"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[#8A8A8A] font-semibold uppercase block">EMAIL ADDRESS</label>
+                      <input
+                        type="email" required placeholder="e.g. marcus@weartome.com"
+                        value={empForm.email} onChange={(e) => setEmpForm({...empForm, email: e.target.value})}
+                        className="w-full bg-black border border-[#2A2A2A] rounded-xl px-4 py-3 outline-none text-white focus:border-white transition-all"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[#8A8A8A] font-semibold uppercase block">TEMPORARY PASSWORD</label>
+                      <input
+                        type="password" required placeholder="Min 6 characters"
+                        value={empForm.password} onChange={(e) => setEmpForm({...empForm, password: e.target.value})}
+                        className="w-full bg-black border border-[#2A2A2A] rounded-xl px-4 py-3 outline-none text-white focus:border-white transition-all"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-1.5">
+                      <label className="text-[#8A8A8A] font-semibold uppercase block">STAFF AUTHORITY ROLE</label>
+                      <select
+                        value={empForm.role} onChange={(e) => setEmpForm({...empForm, role: e.target.value})}
+                        className="w-full bg-black border border-[#2A2A2A] rounded-xl px-4 py-3 outline-none text-white focus:border-white transition-all uppercase font-semibold"
+                      >
+                        <option value="Sub-admin">Sub-admin</option>
+                        <option value="Manager">Manager</option>
+                        <option value="Employee">Employee/Staff</option>
+                        <option value="Customer Care">Customer Care</option>
+                      </select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[#8A8A8A] font-semibold uppercase block">EXPLICIT PERMISSIONS (JSON ARRAY OF STRINGS)</label>
+                      <input
+                        type="text" required
+                        value={empForm.permissions} onChange={(e) => setEmpForm({...empForm, permissions: e.target.value})}
+                        className="w-full bg-black border border-[#2A2A2A] rounded-xl px-4 py-3 outline-none text-white font-mono focus:border-white transition-all"
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="bg-[#F8F6F2] hover:bg-white text-black px-8 py-3.5 rounded-full text-xs font-bold uppercase tracking-widest transition-all"
+                  >
+                    REGISTER STAFF ACCOUNT
+                  </button>
+                </form>
+              )}
+
+              <div className="bg-[#0A0A0A] border border-[#2A2A2A] rounded-2xl overflow-hidden">
+                <table className="w-full text-left text-xs text-[#B5B5B5]">
+                  <thead className="bg-black text-[#8A8A8A] uppercase font-semibold border-b border-[#2A2A2A]">
+                    <tr>
+                      <th className="p-5">STAFF NAME</th>
+                      <th className="p-5">EMAIL</th>
+                      <th className="p-5">STAFF ROLE</th>
+                      <th className="p-5">OVERRIDE PERMISSIONS</th>
+                      <th className="p-5 text-right">ACTIONS</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#2A2A2A]">
+                    {users.filter((u: any) => u.role !== 'Customer').map((emp) => (
+                      <tr key={emp.id} className="hover:bg-[#111111]/30 transition-colors">
+                        <td className="p-5">
+                          <span className="font-bold text-white block uppercase">{emp.name}</span>
+                          <span className="text-[10px] text-[#8A8A8A] font-mono block mt-0.5">ID: #{emp.id}</span>
+                        </td>
+                        <td className="p-5 font-mono">{emp.email}</td>
+                        <td className="p-5">
+                          <span className="bg-[#F8F6F2]/10 border border-[#F8F6F2]/30 text-white font-bold px-2.5 py-0.5 rounded-full text-[9px] uppercase tracking-widest">
+                            {emp.role}
+                          </span>
+                        </td>
+                        <td className="p-5">
+                          <div className="flex flex-wrap gap-1.5 max-w-xs">
+                            {(emp.permissions || []).map((perm: string) => (
+                              <span key={perm} className="bg-black border border-[#2A2A2A] text-[#8A8A8A] font-mono text-[9px] px-1.5 py-0.5 rounded">
+                                {perm}
+                              </span>
+                            ))}
+                          </div>
+                        </td>
+                        <td className="p-5 text-right">
+                          {emp.email !== sessionUser.email && (
+                            <button
+                              onClick={() => handleDeleteEmployee(emp.id)}
+                              className="text-red-500 hover:underline text-[10px] font-bold uppercase tracking-widest bg-black border border-[#2A2A2A] rounded-full px-4 py-2 hover:border-red-500 transition-all"
+                            >
+                              REMOVE
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* ==================== 12. REVENUE & MARGINS VIEW ==================== */}
+          {activeModule === 'revenue' && (
+            <div className="space-y-8 animate-fade-in text-xs">
+              <div className="border-b border-[#2A2A2A] pb-6">
+                <h2 className="font-serif-luxury text-2xl font-bold uppercase text-white">REVENUE & TRANSACTION LEDGER</h2>
+                <p className="text-xs text-[#8A8A8A]">Examine cumulative platform performance performance metrics, gross margins, and order refund logs.</p>
+              </div>
+
+              {/* Financial KPI Summary Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="bg-[#0A0A0A] border border-[#2A2A2A] rounded-2xl p-6 space-y-2">
+                  <span className="text-[10px] uppercase tracking-widest text-[#8A8A8A] font-semibold block">TOTAL TRANSACTIONS VALUE</span>
+                  <span className="text-2xl font-bold block text-white">₹{orders.reduce((acc, o) => acc + o.total_price, 0).toLocaleString()}</span>
+                  <span className="text-[9px] text-green-500 block uppercase font-medium">✓ SECURED VOLUMES</span>
+                </div>
+                <div className="bg-[#0A0A0A] border border-[#2A2A2A] rounded-2xl p-6 space-y-2">
+                  <span className="text-[10px] uppercase tracking-widest text-[#8A8A8A] font-semibold block">ESTIMATED COGS MARGIN (70%)</span>
+                  <span className="text-2xl font-bold block text-white">₹{Math.floor(orders.reduce((acc, o) => acc + o.total_price, 0) * 0.7).toLocaleString()}</span>
+                  <span className="text-[9px] text-[#8A8A8A] block uppercase font-medium">REVENUE LESS COST OF GOODS</span>
+                </div>
+                <div className="bg-[#0A0A0A] border border-[#2A2A2A] rounded-2xl p-6 space-y-2">
+                  <span className="text-[10px] uppercase tracking-widest text-[#8A8A8A] font-semibold block">TRACKED REFUND LIABILITIES</span>
+                  <span className="text-2xl font-bold block text-red-500">₹{orders.filter(o => o.status === 'Cancelled').reduce((acc, o) => acc + o.total_price, 0).toLocaleString()}</span>
+                  <span className="text-[9px] text-[#8A8A8A] block uppercase font-medium">TIED TO CANCELLED ORDER ROWS</span>
+                </div>
+              </div>
+
+              {/* Transaction details ledger */}
+              <div className="bg-[#0A0A0A] border border-[#2A2A2A] rounded-2xl overflow-hidden">
+                <div className="p-6 border-b border-[#2A2A2A] bg-black/10">
+                  <span className="text-xs font-bold uppercase tracking-widest text-white">DETAILED PERFORMANCE LEDGER</span>
+                </div>
+                <table className="w-full text-left text-xs text-[#B5B5B5]">
+                  <thead className="bg-black text-[#8A8A8A] uppercase font-semibold border-b border-[#2A2A2A]">
+                    <tr>
+                      <th className="p-5">TRANSACTION ID</th>
+                      <th className="p-5">BILLING RECIPIENT</th>
+                      <th className="p-5">PAYMENT METHOD REF</th>
+                      <th className="p-5">DISCOUNT SLICE</th>
+                      <th className="p-5">TRANSACTION STATUS</th>
+                      <th className="p-5 text-right">TOTAL AMOUNT</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#2A2A2A]">
+                    {orders.map((ord) => (
+                      <tr key={ord.id} className="hover:bg-[#111111]/30 transition-colors">
+                        <td className="p-5 font-mono text-white">TXN-{ord.id}2026</td>
+                        <td className="p-5 uppercase font-medium">{ord.customer_name}</td>
+                        <td className="p-5 font-mono text-[#8A8A8A]">{ord.payment_ref || 'CARD-TOKEN-SIMULATED'}</td>
+                        <td className="p-5 text-red-500 font-mono">-₹{ord.discount_applied.toLocaleString()}</td>
+                        <td className="p-5">
+                          <span className={`inline-block font-semibold px-2 py-0.5 rounded text-[8px] uppercase tracking-widest ${
+                            ord.status === 'Cancelled' ? 'bg-red-500/10 border border-red-500/30 text-red-500' : 'bg-green-500/10 border border-green-500/30 text-green-500'
+                          }`}>
+                            {ord.status === 'Cancelled' ? 'REFUNDED' : 'PAID/SETTLED'}
+                          </span>
+                        </td>
+                        <td className="p-5 text-right font-bold text-white">₹{ord.total_price.toLocaleString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
 
