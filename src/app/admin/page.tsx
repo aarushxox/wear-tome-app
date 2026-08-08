@@ -54,6 +54,33 @@ export default function AdminDashboard() {
   const [typedMessage, setTypedMessage] = useState('');
   const chatBottomRef = useRef<HTMLDivElement>(null);
 
+  // 4. Settings State
+  const [webSettings, setWebSettings] = useState<any>({
+    'site.name': 'Wear Tome',
+    'site.tagline': 'Luxury Streetwear Editorial',
+    'site.seo_title': 'Wear Tome — High-End Luxury Streetwear Storefront',
+    'site.primary_color': '#0A0A0A',
+    'site.primary_font': 'Playfair Display'
+  });
+  const [sysSettings, setSysSettings] = useState<any>({
+    'ai_enabled': '1',
+    'voice_enabled': '1',
+    'theme_mode': 'dark'
+  });
+  const [themePresets, setThemePresets] = useState<any[]>([]);
+  const [selectedPresetId, setSelectedPresetId] = useState<number | null>(null);
+  const [customTokens, setCustomTokens] = useState<any>({
+    primaryBackground: '#000000',
+    cardBackground: '#171717',
+    accentColor: '#FFFFFF',
+    borderColor: '#262626',
+    textPrimary: '#FFFFFF',
+    textSecondary: '#B5B5B5',
+  });
+  const [securityCurrentPassword, setSecurityCurrentPassword] = useState('');
+  const [securityNewPassword, setSecurityNewPassword] = useState('');
+  const [settingsMessage, setSettingsMessage] = useState<string | null>(null);
+
   // Detailed drawers
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
   const [selectedOrderItems, setSelectedOrderOrderItems] = useState<any[]>([]);
@@ -82,6 +109,7 @@ export default function AdminDashboard() {
           loadProducts();
           loadCoupons();
           loadChatThreads();
+          loadSettings();
         }
       });
   }, []);
@@ -164,6 +192,83 @@ export default function AdminDashboard() {
           setChatThreads(data.threads);
         }
       });
+  };
+
+  const loadSettings = () => {
+    fetch('/api/settings')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.websitesettings) {
+          setWebSettings(data.websitesettings);
+        }
+        if (data.systemsettings) {
+          setSysSettings(data.systemsettings);
+        }
+        if (data.themepresets) {
+          setThemePresets(data.themepresets);
+        }
+        if (data.customTheme) {
+          setSelectedPresetId(data.customTheme.preset_id);
+          setCustomTokens(data.customTheme.custom_tokens);
+        }
+      });
+  };
+
+  const handleSaveSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSettingsMessage(null);
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          websitesettings: webSettings,
+          systemsettings: sysSettings,
+          selectPresetId: selectedPresetId,
+          customTokens: customTokens,
+        }),
+      });
+      if (res.ok) {
+        setSettingsMessage('Settings and theme presets have been successfully updated.');
+        confetti({ particleCount: 50, spread: 30 });
+        loadSettings();
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Failed to update settings.');
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleUpdatePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSettingsMessage(null);
+    if (!securityCurrentPassword || !securityNewPassword) {
+      alert('All fields are required.');
+      return;
+    }
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          currentPassword: securityCurrentPassword,
+          newPassword: securityNewPassword,
+        }),
+      });
+      if (res.ok) {
+        setSettingsMessage('Security password changed successfully.');
+        setSecurityCurrentPassword('');
+        setSecurityNewPassword('');
+        confetti({ particleCount: 50, spread: 30 });
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Failed to update password.');
+      }
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   const handleSelectThread = (threadId: number) => {
@@ -363,6 +468,7 @@ export default function AdminDashboard() {
     { id: 'products', label: 'PRODUCTS CRUD', icon: Layers },
     { id: 'coupons', label: 'COUPON ENGINE', icon: Ticket },
     { id: 'chat', label: 'SUPPORT CHAT', icon: MessageSquare },
+    { id: 'settings', label: 'SETTINGS', icon: Settings },
   ];
 
   if (!sessionUser) {
@@ -1144,6 +1250,205 @@ export default function AdminDashboard() {
                 )}
               </div>
 
+            </div>
+          )}
+
+          {/* ==================== 7. SETTINGS MODULE VIEW ==================== */}
+          {activeModule === 'settings' && (
+            <div className="space-y-8 animate-fade-in text-xs">
+              <div className="border-b border-[#2A2A2A] pb-6 flex items-center justify-between">
+                <div>
+                  <h2 className="font-serif-luxury text-2xl font-bold uppercase text-white">SYSTEM & BRANDING CONFIGURATION</h2>
+                  <p className="text-xs text-[#8A8A8A]">Manage site branding settings, toggle AI or voice capabilities, apply theme presets, and update credentials.</p>
+                </div>
+                {settingsMessage && (
+                  <div className="bg-[#F8F6F2] text-black px-4 py-2 rounded-xl text-xs font-semibold uppercase tracking-wider flex items-center space-x-2">
+                    <Check className="w-3.5 h-3.5" />
+                    <span>{settingsMessage}</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                {/* Branding and Systems Column */}
+                <div className="lg:col-span-8 space-y-8">
+                  {/* Branding Config Form */}
+                  <form onSubmit={handleSaveSettings} className="bg-[#0A0A0A] border border-[#2A2A2A] rounded-2xl p-8 space-y-6">
+                    <span className="text-xs uppercase tracking-widest text-[#B5B5B5] font-semibold border-b border-[#2A2A2A] pb-2 block">
+                      SITE BRANDING DETAILS
+                    </span>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-1.5">
+                        <label className="text-[#8A8A8A] font-semibold uppercase block">SITE BRAND NAME</label>
+                        <input
+                          type="text" required
+                          value={webSettings['site.name'] || ''}
+                          onChange={(e) => setWebSettings({ ...webSettings, 'site.name': e.target.value })}
+                          className="w-full bg-black border border-[#2A2A2A] rounded-xl px-4 py-3 outline-none text-white focus:border-white transition-all uppercase font-semibold"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-[#8A8A8A] font-semibold uppercase block">SITE TAGLINE</label>
+                        <input
+                          type="text" required
+                          value={webSettings['site.tagline'] || ''}
+                          onChange={(e) => setWebSettings({ ...webSettings, 'site.tagline': e.target.value })}
+                          className="w-full bg-black border border-[#2A2A2A] rounded-xl px-4 py-3 outline-none text-white focus:border-white transition-all uppercase"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-[#8A8A8A] font-semibold uppercase block">SEO METADATA TITLE</label>
+                      <input
+                        type="text" required
+                        value={webSettings['site.seo_title'] || ''}
+                        onChange={(e) => setWebSettings({ ...webSettings, 'site.seo_title': e.target.value })}
+                        className="w-full bg-black border border-[#2A2A2A] rounded-xl px-4 py-3 outline-none text-white focus:border-white transition-all"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-1.5">
+                        <label className="text-[#8A8A8A] font-semibold uppercase block">PRIMARY COLOR HEX</label>
+                        <div className="flex space-x-2">
+                          <input
+                            type="text" required
+                            value={webSettings['site.primary_color'] || ''}
+                            onChange={(e) => setWebSettings({ ...webSettings, 'site.primary_color': e.target.value })}
+                            className="w-full bg-black border border-[#2A2A2A] rounded-xl px-4 py-3 outline-none text-white focus:border-white transition-all font-mono"
+                          />
+                          <div className="w-12 h-11 rounded-xl border border-[#2A2A2A]" style={{ backgroundColor: webSettings['site.primary_color'] }} />
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-[#8A8A8A] font-semibold uppercase block">PRIMARY FONT FAMILY</label>
+                        <input
+                          type="text" required
+                          value={webSettings['site.primary_font'] || ''}
+                          onChange={(e) => setWebSettings({ ...webSettings, 'site.primary_font': e.target.value })}
+                          className="w-full bg-black border border-[#2A2A2A] rounded-xl px-4 py-3 outline-none text-white focus:border-white transition-all font-semibold"
+                        />
+                      </div>
+                    </div>
+
+                    <span className="text-xs uppercase tracking-widest text-[#B5B5B5] font-semibold border-b border-[#2A2A2A] pb-2 block pt-4">
+                      SYSTEM CAPABILITIES TOGGLES
+                    </span>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      <div className="space-y-1.5">
+                        <label className="text-[#8A8A8A] font-semibold uppercase block">AI FEATURES ENGINE</label>
+                        <select
+                          value={sysSettings['ai_enabled'] || '0'}
+                          onChange={(e) => setSysSettings({ ...sysSettings, 'ai_enabled': e.target.value })}
+                          className="w-full bg-black border border-[#2A2A2A] rounded-xl px-4 py-3 outline-none text-white focus:border-white transition-all uppercase font-semibold"
+                        >
+                          <option value="1">Enabled</option>
+                          <option value="0">Disabled</option>
+                        </select>
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-[#8A8A8A] font-semibold uppercase block">VOICE CAPABILITY (HINDI)</label>
+                        <select
+                          value={sysSettings['voice_enabled'] || '0'}
+                          onChange={(e) => setSysSettings({ ...sysSettings, 'voice_enabled': e.target.value })}
+                          className="w-full bg-black border border-[#2A2A2A] rounded-xl px-4 py-3 outline-none text-white focus:border-white transition-all uppercase font-semibold"
+                        >
+                          <option value="1">Enabled</option>
+                          <option value="0">Disabled</option>
+                        </select>
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-[#8A8A8A] font-semibold uppercase block">DEFAULT THEME MODE</label>
+                        <select
+                          value={sysSettings['theme_mode'] || 'dark'}
+                          onChange={(e) => setSysSettings({ ...sysSettings, 'theme_mode': e.target.value })}
+                          className="w-full bg-black border border-[#2A2A2A] rounded-xl px-4 py-3 outline-none text-white focus:border-white transition-all uppercase font-semibold"
+                        >
+                          <option value="dark">Dark Theme</option>
+                          <option value="light">Light Theme</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <button
+                      type="submit"
+                      className="bg-[#F8F6F2] hover:bg-white text-black px-8 py-3.5 rounded-full text-xs font-bold uppercase tracking-widest transition-all"
+                    >
+                      SAVE BRANDING & SYSTEM CONFIG
+                    </button>
+                  </form>
+                </div>
+
+                {/* Theme presets and Security Password Column */}
+                <div className="lg:col-span-4 space-y-8">
+                  {/* Theme Presets list selector */}
+                  <div className="bg-[#0A0A0A] border border-[#2A2A2A] rounded-2xl p-6 space-y-6">
+                    <span className="text-xs uppercase tracking-widest text-[#B5B5B5] font-semibold border-b border-[#2A2A2A] pb-2 block">
+                      PRESET THEME PROFILES
+                    </span>
+
+                    <div className="space-y-3">
+                      {themePresets.map((preset) => (
+                        <button
+                          key={preset.id}
+                          onClick={() => {
+                            setSelectedPresetId(preset.id);
+                            setCustomTokens(preset.tokens);
+                          }}
+                          className={`w-full text-left p-4 rounded-xl border transition-all flex flex-col space-y-2 outline-none ${
+                            selectedPresetId === preset.id
+                              ? 'bg-[#171717] border-white'
+                              : 'bg-black border-[#2A2A2A] hover:border-[#525252]'
+                          }`}
+                        >
+                          <span className="font-bold text-white uppercase block leading-none">{preset.name}</span>
+                          <div className="flex space-x-2.5">
+                            <span className="text-[10px] text-[#8A8A8A] block">Font: {preset.tokens.fontFamily}</span>
+                            <span className="text-[10px] text-[#8A8A8A] block">&middot; BG: {preset.tokens.primaryBackground}</span>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Security Password credentials form */}
+                  <form onSubmit={handleUpdatePassword} className="bg-[#0A0A0A] border border-[#2A2A2A] rounded-2xl p-6 space-y-4">
+                    <span className="text-xs uppercase tracking-widest text-[#B5B5B5] font-semibold border-b border-[#2A2A2A] pb-2 block">
+                      SECURITY CREDENTIALS CORRECTION
+                    </span>
+
+                    <div className="space-y-1.5">
+                      <label className="text-[#8A8A8A] font-semibold uppercase block">CURRENT PASSWORD</label>
+                      <input
+                        type="password" required placeholder="••••••••••••"
+                        value={securityCurrentPassword}
+                        onChange={(e) => setSecurityCurrentPassword(e.target.value)}
+                        className="w-full bg-black border border-[#2A2A2A] rounded-xl px-4 py-3 outline-none text-white focus:border-white transition-all"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-[#8A8A8A] font-semibold uppercase block">NEW PASSWORD</label>
+                      <input
+                        type="password" required placeholder="••••••••••••"
+                        value={securityNewPassword}
+                        onChange={(e) => setSecurityNewPassword(e.target.value)}
+                        className="w-full bg-black border border-[#2A2A2A] rounded-xl px-4 py-3 outline-none text-white focus:border-white transition-all"
+                      />
+                    </div>
+
+                    <button
+                      type="submit"
+                      className="w-full bg-white hover:bg-[#F8F6F2] text-black py-3 rounded-xl text-xs font-bold uppercase tracking-widest transition-all"
+                    >
+                      UPDATE PASSCODES
+                    </button>
+                  </form>
+                </div>
+              </div>
             </div>
           )}
 
