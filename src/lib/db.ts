@@ -179,6 +179,17 @@ export function initializeDatabase() {
     );
   `);
 
+  // Wishlist table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS wishlist (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(user_id, product_id)
+    );
+  `);
+
   // 11. orders table
   db.exec(`
     CREATE TABLE IF NOT EXISTS orders (
